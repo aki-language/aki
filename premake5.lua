@@ -4,9 +4,7 @@
 
 aki = {}
 aki.rootdir = os.getcwd()
-aki.extdir = fusion.rootdir .. "/extern"
+aki.extdir = aki.rootdir .. "/extern"
 
 grouped_include("extern", "aki/extern")
-grouped_include("transpiler/cc", "aki/cctranspiler")
-grouped_include("docs", "aki/docs")
-grouped_include("samples", "aki/samples")
+grouped_include("cctranspiler", "aki/cctranspiler")

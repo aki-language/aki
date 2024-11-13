@@ -22,7 +22,7 @@
 namespace {
 constexpr char kSaneLogo[] = "akitrans v0.1.0 (c) 2023 Vincent Hengel";
 
-constexpr char kUseageString[] = "Usage: fusioncc [options] <file>\n";
+constexpr char kUseageString[] = "Usage: akitrans [options] <file>\n";
 
 constexpr char kHelpString[] =
     R"(Flags:

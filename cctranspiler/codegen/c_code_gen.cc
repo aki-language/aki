@@ -1,6 +1,6 @@
 // Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
 
-#include <cc_version.h>
+// #include <cc_version.h>
 
 #include "c_code_gen.h"
 #include <base/hashing/fnv1a.h>
@@ -13,6 +13,12 @@
 
 namespace feature_flags {
 base::Knob<bool> MangleTranslatedSymbols{true};
+}
+
+//version::kU8LanguageEdition
+
+namespace version {
+ constexpr char8_t kU8LanguageEdition[] = u8"2024";
 }
 
 namespace insane {
