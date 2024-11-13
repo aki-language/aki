@@ -1,0 +1,20 @@
+project("tbb")
+  kind("StaticLib")
+  language("C++")
+  characterset("MBCS")
+  includedirs({
+    "tbb/include/oneapi",
+    "tbb/include/tbb",
+  })
+  pubincludedirs({
+    "tbb/include",
+  })
+  pubdefines({
+    "__TBB_NO_IMPLICIT_LINKAGE",
+    "__TBB_BUILD",
+    "TBB_USE_EXCEPTIONS=0",
+  })
+  files({
+    "tbb/src/tbb/**.h",
+    "tbb/src/tbb/**.cpp",
+  })

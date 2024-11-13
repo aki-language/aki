@@ -1,0 +1,33 @@
+// The aki language compiler.
+// Copyright (C) 2024 Vincent Hengel.
+// For licensing information see LICENSE at the root of this distribution.
+
+import "akikit.aki"; // Pull in the stdlib
+import "compiler.aki";
+
+let Logo : [c8, ...] = "akic - the official aki compiler\nv0.0.1 (c) 2024 Vincent Hengel";
+let Usage: [c8, ...] = "Usage: akic [options] <file>";
+let Help: [c8, ...] = raw"(
+  Flags:
+
+Options:
+  -h, --help:       Print this help message
+  -o, --output:     Specify the output directory
+  -v, --verbose:    Print verbose output
+
+Arguments:
+   FILES...         The files to compile)";
+
+fn main(argc: i32) : i32 {
+  print(Logo);
+  if (argc == 1) {
+    print(Usage);
+    return 0;
+  }
+
+  let compiler, sucessful: Compiler();
+  !sucessful ? return 1;
+
+  compiler.parse_args(argc, argv);
+  return 0;
+}
