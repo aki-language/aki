@@ -534,8 +534,6 @@ bool Lexer::Parse(const base::StringRefU8 text) {
           continue;
         }
 
-
-
         tokens_.emplace_back(TokenType::Dot, make_ref(start, start + 1));
         break;
       }

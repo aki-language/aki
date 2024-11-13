@@ -706,63 +706,72 @@ ParseError Parser::ParseVariableDecleration(
   BASE_LOGI(kTag, "Parse attempt: {}",
             (char*)base::MakeStringCopy(name_ref).c_str());
 
+  ParseResult parsed_type;
+
   // type is provided.
   // let name : aaa = b; <- aaa
   // or we must handle an array decleration
   // which looks like: let Logo : [c8, ...] <- array decleration
   if (CheckForToken(TokenType::Colon)) {  // :
-
-    if (CheckForToken(TokenType::LParen)) { // [ <- array begin
-      const ParseResult parsed_type = ParseType();  // c8 for example
+    if (CheckForToken(TokenType::LParen)) {         // [ <- array begin
+      parsed_type = ParseType();  // c8 for example
       if (CheckForToken(TokenType::Comma)) {
         bool is_unbounded = CheckForToken(TokenType::DotDotDot);
         if (!is_unbounded) {
           // might be a number
+          const auto number = ParseCharacterSequence();
+          if (number.empty()) return ParseError::InvalidName;
 
+          if (!CheckForToken(TokenType::RParen))
+            return ParseError::UnexpectedEnding;
+        } else {
+            if (!CheckForToken(TokenType::RParen))
+                return ParseError::UnexpectedEnding;
         }
       }
-
     }
-
-    const ParseResult parsed_type = ParseType();  // aaa
-
-    // a ptr decleration might follow, such as
-    // let utf8_ptr :        c8& = "Hello, World!";
-    const bool is_ptr = CheckForToken(TokenType::Ampersand);
-
-    const ParseResult<ParsedExpressionRef> expr_result =
-        ParseExpression(true, is_ptr);  // = something
-
-    auto obj = expr_result.status == ParseError::Success
-                   ? objects_.all_variables.Create(
-                         name_ref, is_let_const, Linkage::External,
-                         Visibility::Private, parsed_type.maybe_handle,
-                         expr_result.maybe_handle)
-                   : objects_.all_variables.Create(
-                         name_ref, is_let_const, Linkage::External,
-                         Visibility::Private, parsed_type.maybe_handle,
-                         (ParsedExpressionRef)TU::invalid_handle);
-
-    objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
-    return ParseError::Success;
-  }
-  // immedeate assignment (auto type deduction)
-  // no point in parsing...
-  else if (Peek().type == TokenType::Equal) {
-    auto obj = objects_.all_variables.Create(
-        name_ref, is_const, Linkage::External, Visibility::Private,
-        (ParsedTypeRef)TU::invalid_handle,
-        (ParsedExpressionRef)TU::invalid_handle);
-
-    objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
-    BASE_LOGI(kTag, "Parsing auto type..");
-
-    return ParseError::Success;
   } else {
-    BASE_LOGI(kTag, "Peek type: {} unknown.. owie.. ",
-              static_cast<i32>(Peek().type));
-    return ParseError::InvalidTypeDecleration;
+    // follows directly after the name
+    parsed_type = ParseType();  // aaa
   }
+  // a ptr decleration might follow, such as
+  // let utf8_ptr :        c8& = "Hello, World!";
+  const bool is_ptr = CheckForToken(TokenType::Ampersand);
+
+  const ParseResult<ParsedExpressionRef> expr_result =
+      ParseExpression(true, is_ptr);  // = something
+
+  auto obj =
+      expr_result.status == ParseError::Success
+          ? objects_.all_variables.Create(
+                name_ref, is_let_const, Linkage::External, Visibility::Private,
+                parsed_type.maybe_handle, expr_result.maybe_handle)
+          : objects_.all_variables.Create(
+                name_ref, is_let_const, Linkage::External, Visibility::Private,
+                parsed_type.maybe_handle,
+                (ParsedExpressionRef)TU::invalid_handle);
+
+  objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
+  return ParseError::Success;
+}
+// immedeate assignment (auto type deduction)
+// no point in parsing...
+else if (Peek().type == TokenType::Equal) {
+  auto obj = objects_.all_variables.Create(
+      name_ref, is_const, Linkage::External, Visibility::Private,
+      (ParsedTypeRef)TU::invalid_handle,
+      (ParsedExpressionRef)TU::invalid_handle);
+
+  objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
+  BASE_LOGI(kTag, "Parsing auto type..");
+
+  return ParseError::Success;
+}
+else {
+  BASE_LOGI(kTag, "Peek type: {} unknown.. owie.. ",
+            static_cast<i32>(Peek().type));
+  return ParseError::InvalidTypeDecleration;
+}
 }
 
 ParseError Parser::ParseImport() {
