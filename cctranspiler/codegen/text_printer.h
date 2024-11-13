@@ -2,13 +2,13 @@
 #pragma once
 
 #include <base/arch.h>
-#include <base/logging.h>
 #include <base/containers/vector.h>
+#include <base/logging.h>
 #include <base/strings/string_ref.h>
 
+#include <array>
 #include <unordered_map>
 #include <vector>
-#include <array>
 
 namespace insane {
 
@@ -28,14 +28,14 @@ class TextPrinter {
     base::StringRefU8 second;
   };
   // Recursive function to create an array of substutionsn
-  // usage:   printer_.Print(u8"#include \"$file_name$it\";\n", Substitution{u8"file_name",
-  // import.target});
+  // usage:   printer_.Print(u8"#include \"$file_name$it\";\n",
+  // Substitution{u8"file_name", import.target});
   template <typename... Args>
   void Print(const base::StringRefU8 text, const Args&... args) {
-      constexpr auto size = sizeof...(Args);
+    constexpr auto size = sizeof...(Args);
 
-      const Substitution substitutions[size] = {args...};
-      return PrintStack(text, substitutions, size);
+    const Substitution substitutions[size] = {args...};
+    return PrintStack(text, substitutions, size);
   }
 
   // 0 arg handler for msvc.
@@ -43,8 +43,7 @@ class TextPrinter {
 
   // placeholder, value mapping
   void PrintStack(const base::StringRefU8& text,
-                  const Substitution* substitutions,
-                  mem_size size);
+                  const Substitution* substitutions, mem_size size);
 
   // add contents directly to the buffer
   void RawWrite(const base::StringRefU8 text);

@@ -2,6 +2,7 @@
 
 #include <list>
 #include <stack>
+
 #include "base/compiler.h"
 
 template <typename T>
@@ -14,7 +15,7 @@ class FIFOStack {
 
   T dequeue() {
     if (list.empty()) {
-      //throw std::out_of_range("Queue is empty");
+      // throw std::out_of_range("Queue is empty");
     }
 
     T frontValue = list.front();
@@ -26,7 +27,7 @@ class FIFOStack {
   T peek() {
     if (list.empty()) {
       CHECK_BREAK;
-      //throw std::out_of_range("Queue is empty");
+      // throw std::out_of_range("Queue is empty");
     }
 
     return list.front();
@@ -35,7 +36,7 @@ class FIFOStack {
   T peek_back(size_t index) {
     if (index >= size()) {
       CHECK_BREAK;
-      //throw std::out_of_range("Index out of range");
+      // throw std::out_of_range("Index out of range");
     }
 
     auto iter = list.rbegin();
@@ -44,9 +45,9 @@ class FIFOStack {
     return *iter;
   }
 
-    T front() {
+  T front() {
     if (list.empty()) {
-      //throw std::out_of_range("Queue is empty");
+      // throw std::out_of_range("Queue is empty");
       DEBUG_TRAP;
     }
 

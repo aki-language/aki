@@ -1,9 +1,10 @@
 // Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
 
-#include <base/logging.h>
 #include <base/command_line.h>
-#include <base/strings/xstring.h>
 #include <base/filesystem/file_util.h>
+#include <base/logging.h>
+#include <base/strings/xstring.h>
+
 #include <cstdio>
 #include <exception>
 
@@ -11,9 +12,8 @@
 #include "base/check.h"
 #include "base/knob.h"
 #include "base/strings/string_ref.h"
-#include "transpiler.h"
-
 #include "knobs.h"
+#include "transpiler.h"
 
 #if defined(OS_WIN)
 #include <Windows.h>
@@ -106,8 +106,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  if (!command_line.FindSwitch(u8"-nologo"))
-    std::puts(&kSaneLogo[1]);
+  if (!command_line.FindSwitch(u8"-nologo")) std::puts(&kSaneLogo[1]);
 
   if (command_line.FindSwitch(u8"-h") || command_line.FindSwitch(u8"--help")) {
     std::puts(kHelpString);

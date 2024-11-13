@@ -4,22 +4,18 @@
 
 namespace insane {
 namespace {
-inline bool StringMatchSafe(const char8_t* lhs,
-                            const char8_t* rhs,
-                            mem_size limit,
-                            mem_size& length) {
+inline bool StringMatchSafe(const char8_t* lhs, const char8_t* rhs,
+                            mem_size limit, mem_size& length) {
   char8_t c1, c2;
 
   while (limit-- && (c1 = *lhs++) == (c2 = *rhs++)) {
     length++;
-    if (c1 == 0)
-      return 0;
+    if (c1 == 0) return 0;
   }
 
   // We can't just return c1 - c2, because the difference might be greater than
   // INT_MAX.
-  return (static_cast<u8>
-      (c1) - static_cast<u8>(c2)) == 0;
+  return (static_cast<u8>(c1) - static_cast<u8>(c2)) == 0;
 }
 }  // namespace
 
@@ -30,6 +26,7 @@ constexpr const char8_t* kKeyWords[] = {
     u8"isa",
     u8"let",
     u8"var",
+    u8"raw",
     u8"enum",
     u8"class",
     u8"struct",
@@ -39,7 +36,7 @@ constexpr const char8_t* kKeyWords[] = {
     u8"import",
     u8"include",  // reserved
     u8"extern",
-    u8"func",
+    u8"fn",
     u8"return",
     u8"public",
     u8"private",  // only works for access control in classes
@@ -98,4 +95,4 @@ KeywordType MatchKeyword(const base::StringRefU8 ref) noexcept {
 static_assert(sizeof(kKeyWords) / sizeof(const char8_t*) ==
                   static_cast<size_t>(KeywordType::COUNT),
               "Keyword mapping mismatch");
-}  // namespace fusion
+}  // namespace insane

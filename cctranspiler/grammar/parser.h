@@ -1,13 +1,13 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 #pragma once
 
-#include "token.h"
-#include "syntax.h"
-#include "keyword.h"
-#include "translation_unit.h"
-
 #include <base/expected.h>
 #include <base/optional.h>
+
+#include "keyword.h"
+#include "syntax.h"
+#include "token.h"
+#include "translation_unit.h"
 
 namespace insane {
 enum class ParseError {
@@ -42,14 +42,14 @@ enum class ParseError {
 };
 
 template <typename T = obj_handle>
-struct ParseResult  {
+struct ParseResult {
   using handle_type = T;
 
   const ParseError status;
   handle_type maybe_handle;
 
-  ParseResult(const ParseError status,
-              handle_type maybe_handle = (handle_type)TranslationUnit::invalid_handle)
+  ParseResult(const ParseError status, handle_type maybe_handle = (handle_type)
+                                           TranslationUnit::invalid_handle)
       : status(status), maybe_handle(maybe_handle) {}
 
   ParseResult(handle_type sure_handle)
@@ -64,12 +64,11 @@ class Parser {
  public:
   Parser() = delete;
   explicit Parser(base::Vector<Token>);
-  ~Parser(){};
+  ~Parser() {};
 
   void ParseTokens();
 
   auto& translation_unit() { return objects_; }
-
 
  private:
   // parse subs
@@ -94,7 +93,8 @@ class Parser {
   ParseError ConsumeKeyword(const KeywordType, base::Optional<bool>);
 
   ParseResult<ParsedStatementRef> ParseStatement2();
-  ParseResult<ParsedExpressionRef> ParseExpression(bool has_assignment, bool has_ptr);
+  ParseResult<ParsedExpressionRef> ParseExpression(bool has_assignment,
+                                                   bool has_ptr);
 
   ParseResult<ParsedOpRef> ParseOperand(const bool ptr);
 
@@ -115,7 +115,7 @@ class Parser {
   // ref tracking into the original token array.
   base::Vector<Token> tokens_;
   mem_size current_index_{0};
-  //int current_{0};
+  // int current_{0};
 
   // for now
   insane::TranslationUnit objects_;

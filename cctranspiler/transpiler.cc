@@ -1,26 +1,24 @@
 // Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
 
 #include "transpiler.h"
-#include "grammar/lexer.h"
-#include "grammar/parser.h"
 
-#include <base/logging.h>
+#include <base/command_line.h>
 #include <base/filesystem/file_util.h>
 #include <base/filesystem/path.h>
-#include <base/command_line.h>
+#include <base/logging.h>
 #include <base/text/code_point_validation.h>
 
 #include "codegen/code_gen_factory.h"
+#include "grammar/lexer.h"
+#include "grammar/parser.h"
 
-// NOTE(Vince): major hack, placed here for now to disable compilation of TBB without
-// exceptions properly.
+// NOTE(Vince): major hack, placed here for now to disable compilation of TBB
+// without exceptions properly.
 namespace tbb::detail::r1 {
 void do_throw_noexcept(void (*throw_exception)()) {}
 }  // namespace tbb::detail::r1
 
-namespace {
-
-}  // namespace
+namespace {}  // namespace
 
 namespace insane {
 std::unique_ptr<byte[]> LoadFile(const base::Path& file_path) {
@@ -42,22 +40,24 @@ std::unique_ptr<byte[]> LoadFile(const base::Path& file_path) {
 
 InsaneTranspiler::InsaneTranspiler() {}
 
-void InsaneTranspiler::ProcessSourceFiles(const file_list& input_file_canidates) {
+void InsaneTranspiler::ProcessSourceFiles(
+    const file_list& input_file_canidates) {
   base::Vector<std::unique_ptr<byte[]>> file_contents;
 
-  // IO is blocking regardless for now since we have to upload to common vector, and
-  // i wanna keep that as a queue of sorts?
+  // IO is blocking regardless for now since we have to upload to common vector,
+  // and i wanna keep that as a queue of sorts?
   for (const base::Path& file_path : input_file_canidates) {
     auto bytes = LoadFile(file_path);
-    if (!bytes)
-      continue;
+    if (!bytes) continue;
     loaded_files_.push_back(file_path);
     file_contents.emplace_back(base::move(bytes));
   }
 
-  // NOTE(Vince): We parse each file individually, and then we can do a second pass.
+  // NOTE(Vince): We parse each file individually, and then we can do a second
+  // pass.
   tbb::parallel_for((i64)0, static_cast<i64>(file_contents.size()), [&](i64 i) {
-    const char8_t* data = reinterpret_cast<const char8_t*>(file_contents[i].get());
+    const char8_t* data =
+        reinterpret_cast<const char8_t*>(file_contents[i].get());
     ParseFile(data);
   });
 }
@@ -77,4 +77,4 @@ void InsaneTranspiler::ParseFile(const base::StringRefU8 text) {
   auto gen = CreateCodeGenerator();
   gen->GenerateCode(parser.translation_unit());
 }
-}  // namespace fusion
+}  // namespace insane

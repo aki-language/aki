@@ -2,10 +2,8 @@
 #pragma once
 
 #include <base/containers/vector.h>
-
-#include <base/filesystem/path.h>
 #include <base/filesystem/file.h>
-
+#include <base/filesystem/path.h>
 #include <tbb/task_scheduler_observer.h>
 #include <tbb/tbb.h>
 
@@ -25,6 +23,6 @@ class InsaneTranspiler {
  private:
   file_list loaded_files_;
 
-  //oneapi::tbb::task_scheduler observer_;
+  // oneapi::tbb::task_scheduler observer_;
 };
-}  // namespace fusion
+}  // namespace insane

@@ -2,8 +2,4 @@
 
 #include "premake_script_generator.h"
 
-namespace insane {
-
-
-}
-
+namespace insane {}

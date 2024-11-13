@@ -1,11 +1,13 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 
+#include "text_printer.h"
+
 #include <base/check.h>
 #include <base/containers/vector.h>
 #include <base/text/utf8_codepoint_iterator.h>
+
 #include "base/arch.h"
 #include "base/strings/string_ref.h"
-#include "text_printer.h"
 
 namespace insane {
 TextPrinter::TextPrinter(base::StringU8& buffer)
@@ -13,9 +15,7 @@ TextPrinter::TextPrinter(base::StringU8& buffer)
 
 TextPrinter::~TextPrinter() {}
 
-void TextPrinter::PushIndent() {
-  current_intendation_level_ += 2;
-}
+void TextPrinter::PushIndent() { current_intendation_level_ += 2; }
 
 void TextPrinter::PopIndent() {
   if (current_intendation_level_ >= 2) {
@@ -26,8 +26,7 @@ void TextPrinter::PopIndent() {
 }
 
 void TextPrinter::PrintStack(const base::StringRefU8& text,
-                             const Substitution* substitutions,
-                             mem_size size) {
+                             const Substitution* substitutions, mem_size size) {
   base::StringU8 indented_text;
   indented_text.reserve(text.size() * 2);  // Preallocate memory
 
@@ -37,8 +36,7 @@ void TextPrinter::PrintStack(const base::StringRefU8& text,
   auto seek = [substitutions, size](
                   const base::StringRefU8& data) -> const base::StringRefU8* {
     for (mem_size i = 0; i < size; ++i) {
-      if (substitutions[i].first == data)
-        return &substitutions[i].second;
+      if (substitutions[i].first == data) return &substitutions[i].second;
     }
     return nullptr;
   };

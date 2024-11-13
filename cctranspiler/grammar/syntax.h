@@ -1,10 +1,10 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 #pragma once
 
-#include <variant>
-#include <vector>
 #include <any>
 #include <optional>
+#include <variant>
+#include <vector>
 
 #include "base/logging.h"
 #include "base/memory/move.h"
@@ -111,10 +111,8 @@ struct ParsedEnumDecl {
 
   base::Vector<base::StringRefU8> member_values;
 
-  explicit ParsedEnumDecl(const base::StringRefU8 name,
-                          const Linkage linkage,
-                          const Visibility visibility,
-                          const Variant variant,
+  explicit ParsedEnumDecl(const base::StringRefU8 name, const Linkage linkage,
+                          const Visibility visibility, const Variant variant,
                           base::Vector<base::StringRefU8>&& refu8)
       : name(name),
         linkage(linkage),
@@ -299,8 +297,7 @@ struct ParsedVariableDecl {
   ParsedTypeRef type;
   ParsedExpressionRef optional_assignment;
 
-  explicit ParsedVariableDecl(const base::StringRefU8 name,
-                              const bool is_const,
+  explicit ParsedVariableDecl(const base::StringRefU8 name, const bool is_const,
                               const Linkage linkage,
                               const Visibility visibility,
                               const ParsedTypeRef parsed_type,
@@ -345,8 +342,7 @@ struct ParsedFunctionDecl {
 
   explicit ParsedFunctionDecl(const base::StringRefU8 name,
                               base::Vector<ParsedParameterDeclRef>& params,
-                              ParsedTypeRef return_type,
-                              Linkage linkage,
+                              ParsedTypeRef return_type, Linkage linkage,
                               Visibility visibility)
       : name(name),
         param_refs(base::move(params)),
@@ -374,8 +370,7 @@ struct ParsedComplexDecl {
   // base::Vector<ParsedVariableDecl> member_variables;
 
   explicit ParsedComplexDecl(const base::StringRefU8 name,
-                             const Linkage linkage,
-                             const Visibility visibility)
+                             const Linkage linkage, const Visibility visibility)
       : name(name), linkage(linkage), visibility(visibility) {}
 
   // Move constructor

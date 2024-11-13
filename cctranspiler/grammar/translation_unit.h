@@ -1,13 +1,13 @@
 // Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
 #pragma once
 
-#include <base/memory/unique_pointer.h>
 #include <base/containers/vector.h>
+#include <base/memory/unique_pointer.h>
 
 #include "base/compiler.h"
-#include "syntax.h"
-#include "object_pool.h"
 #include "fifo_stack.h"
+#include "object_pool.h"
+#include "syntax.h"
 
 namespace insane {
 #define AST_POOL(class_name, name) \
@@ -136,7 +136,8 @@ struct TranslationUnit {
     }
 
     auto tmp_str = name.to_string();
-    BASE_LOGI(kLogTag, ">>> Activating scope: {}", (const char*)tmp_str.c_str());
+    BASE_LOGI(kLogTag, ">>> Activating scope: {}",
+              (const char*)tmp_str.c_str());
 
     scope_stack_.push(ptr);
     current_scope_ = ptr;
@@ -151,7 +152,7 @@ struct TranslationUnit {
       current_scope_ = nullptr;  // No more scopes left
     }
     BASE_LOGI(kLogTag, "<<< Returning to scope: {}",
-             (const char*)current_scope_->name.to_string().c_str());
+              (const char*)current_scope_->name.to_string().c_str());
   }
 };
 

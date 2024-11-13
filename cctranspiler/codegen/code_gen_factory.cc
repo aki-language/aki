@@ -1,7 +1,8 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 
-#include <base/command_line.h>
 #include "code_gen_factory.h"
+
+#include <base/command_line.h>
 
 #include "c_code_gen.h"
 #include "cc_code_gen.h"
@@ -23,9 +24,9 @@ CodegenTargets GetTargetOption() {
 }
 }  // namespace
 
-// later you may be perhaps able to mix cc and c for one project, so we keep that
-// door open by checking the target option for each file now, even if there is no way
-// to specify that rn
+// later you may be perhaps able to mix cc and c for one project, so we keep
+// that door open by checking the target option for each file now, even if there
+// is no way to specify that rn
 base::UniquePointer<CodeGen> CreateCodeGenerator() {
   switch (GetTargetOption()) {
     default:
@@ -34,9 +35,9 @@ base::UniquePointer<CodeGen> CreateCodeGenerator() {
     case CodegenTargets::CCodeGen:
       return base::MakeUnique<CCodeGen>();
     case CodegenTargets::CXXCodeGen:
-      //return base::MakeUnique<CCodeWriter>();
+      // return base::MakeUnique<CCodeWriter>();
       return {};
   }
 }
 
-}  // namespace fusion
+}  // namespace insane

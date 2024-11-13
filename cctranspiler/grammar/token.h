@@ -51,6 +51,7 @@ enum class TokenType {
   Comma,
   Dot,
   DotDot,
+  DotDotDot,
   LParen,
   RParen,
   LCurly,
@@ -97,8 +98,8 @@ struct Token {
   base::StringRefU8 value;
 
   inline base::StringU8 StringifyContent() const {
-    // as the token points to a range within an original source file, we have to copy
-    // it to append a null terminator
+    // as the token points to a range within an original source file, we have to
+    // copy it to append a null terminator
     base::StringU8 token_content(value.data(), value.length() + 1);
     token_content.at(value.length()) = 0;
 

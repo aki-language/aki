@@ -11,24 +11,21 @@ namespace feature_flags {
 
 extern base::Knob<bool> MangleTranslatedSymbols;
 
-inline void InitializeAllKnobs() {
-    MangleTranslatedSymbols.Construct();
-}
+inline void InitializeAllKnobs() { MangleTranslatedSymbols.Construct(); }
 
-inline void DestructAllKnobs() {
-    MangleTranslatedSymbols.Destruct();
-}
+inline void DestructAllKnobs() { MangleTranslatedSymbols.Destruct(); }
 
 struct KnobEntry {
-    const char* name;
-    base::BasicKnob* knob_obj;
+  const char* name;
+  base::BasicKnob* knob_obj;
 };
 
 constexpr int kKnobCount = 1;
 
 inline void InitializeAllKnobsAndRegister(KnobEntry (&knob_list)[kKnobCount]) {
-    InitializeAllKnobs();
-    knob_list[0] = KnobEntry{"mangle_translated_symbols", &MangleTranslatedSymbols};
+  InitializeAllKnobs();
+  knob_list[0] =
+      KnobEntry{"mangle_translated_symbols", &MangleTranslatedSymbols};
 }
 
 }  // namespace feature_flags

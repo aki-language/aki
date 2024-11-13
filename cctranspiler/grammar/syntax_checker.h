@@ -12,4 +12,4 @@ class SyntaxChecker {
  private:
   Transpiler& transpiler_;
 };
-}  // namespace fusion
+}  // namespace insane

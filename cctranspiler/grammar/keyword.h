@@ -13,21 +13,24 @@ enum class KeywordType {
   IsA,  // type is_a other_type;
 
   Let,  // let name = value;
-  Var,      // var name = value;
+  Var,  // var name = value;
+  Raw,  // raw"string that can extend multiple lines";
 
   Enum,     // enum name { a, b, c };
   Class,    // class name {...};
   Struct,   // struct name {...}; everything public
-  Complex,  // complex name {...}; accessibility depending on prepended keyword, by
-            // default private. succeeds struct, class in the fusion language. they
-            // are only kept as keywords for error collecting reasons.
+  Complex,  // complex name {...}; accessibility depending on prepended keyword,
+            // by default private. succeeds struct, class in the fusion
+            // language. they are only kept as keywords for error collecting
+            // reasons.
   Extends,  // complex A extends B {}
-  Using,    // using <type_name> = type<T...>; // alias type name to template combination another name idea could be adopt
+  Using,    // using <type_name> = type<T...>; // alias type name to template
+            // combination another name idea could be adopt
   Import,   // import "source.fu"
   Include,  // same as Import, supported for compatability reasons.
 
-  Extern,  // extern "C" { int my_c_code = 10; } or extern "C++" { template<typename
-           // T> void my_templated_mess() {...} }
+  Extern,  // extern "C" { int my_c_code = 10; } or extern "C++" {
+           // template<typename T> void my_templated_mess() {...} }
 
   Func,     // func name(params...) {...}
   Return,   // return 0;
@@ -39,8 +42,8 @@ enum class KeywordType {
 
   If,  // if (condition) {} else if (condition) {} else {}
 
-  For,  // IDEA: for (int i .. 10) {} one by one to ten, or for (int i .. 10 .. 2) {}
-        // one by one to ten, but with a step of two
+  For,  // IDEA: for (int i .. 10) {} one by one to ten, or for (int i .. 10 ..
+        // 2) {} one by one to ten, but with a step of two
 
   While,     // while (condition) {}
   Break,     // break;

@@ -1,11 +1,10 @@
 // Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
 #pragma once
 
-#include <queue>
 #include <base/containers/vector.h>
 
-#include <vector>
 #include <queue>
+#include <vector>
 // TODO: support for an invalid handle ref...
 template <class T, typename TReal, typename THandle = u64>
 class ObjectPool {
@@ -39,7 +38,7 @@ class ObjectPool {
   template <typename TFunc>
   value_type* Find(TFunc&& func) {
     for (auto& obj : storage_) {
-      if (func(obj )) {
+      if (func(obj)) {
         return &obj;
       }
     }

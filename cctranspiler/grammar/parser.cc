@@ -1,10 +1,12 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 
+#include "parser.h"
+
+#include <base/containers/vector.h>
 #include <base/logging.h>
 #include <base/memory/lazy_instance.h>
 #include <base/strings/string_compare.h>
-#include <base/containers/vector.h>
-#include "parser.h"
+
 #include "base/compiler.h"
 #include "base/strings/string_ref.h"
 #include "grammar/syntax.h"
@@ -22,7 +24,7 @@ Parser::Parser(base::Vector<Token> tokens) : tokens_(base::move(tokens)) {}
 
 void Parser::ParseTokens() {
   // Allocate the global space. This is the root of the AST. NOT a namespace.
-  objects_.ActivateScope(u8"___FUGLOBAL__",
+  objects_.ActivateScope(u8"___AKIGLOBAL__",
                          TranslationUnit::Scope::Type::Namespace);
   // NOTE(Vince): go token by token using an index, so we can peek at indicies
   // that we are not at yet later.
@@ -30,11 +32,10 @@ void Parser::ParseTokens() {
     const Token& token = tokens_[current_index_];
     if (token.type == TokenType::CharacterSequence) {
       const KeywordType kwd_type = EatKeyword();
-      if (kwd_type == KeywordType::Unknown)
-        continue;
+      if (kwd_type == KeywordType::Unknown) continue;
       const auto parse_err = ConsumeKeyword(kwd_type, {});
       if (parse_err != ParseError::Success) {
-        BASE_LOGI(kTag,"Parse failure: {}", static_cast<i32>(parse_err));
+        BASE_LOGI(kTag, "Parse failure: {}", static_cast<i32>(parse_err));
       }
     } else if (token.type == TokenType::Comment) {
       // skip comments
@@ -47,19 +48,16 @@ KeywordType Parser::EatKeyword() {
   const Token& type = tokens_[current_index_];
   insane::KeywordType kwd = MatchKeyword(type.value);
   bool is_match = kwd != KeywordType::Unknown;
-  if (is_match)
-    current_index_++;
+  if (is_match) current_index_++;
   // should switch these to array access keyword_array[index] instead of this
   // bs.
   return kwd;
 }
 
 ParseError Parser::ConsumeKeyword(
-    const KeywordType kwd_type,
-    base::Optional<bool> optional_visibility_info) {
+    const KeywordType kwd_type, base::Optional<bool> optional_visibility_info) {
   // test bounds
-  if (current_index_ >= tokens_.size())
-    return ParseError::UnexpectedEnding;
+  if (current_index_ >= tokens_.size()) return ParseError::UnexpectedEnding;
 
   switch (kwd_type) {
     case KeywordType::Let:
@@ -83,21 +81,20 @@ ParseError Parser::ConsumeKeyword(
     }
     case KeywordType::Func: {
       const ParseResult result = ParseFunctionDecleration();
-      if (result.status != ParseError::Success)
-        return result.status;
+      if (result.status != ParseError::Success) return result.status;
       objects_.current_scope()->functions.emplace_back(result.maybe_handle);
       break;
     }
     case KeywordType::Enum: {
       const ParseResult result = ParseEnumDecleration();
-      if (result.status != ParseError::Success)
-        return result.status;
+      if (result.status != ParseError::Success) return result.status;
       objects_.current_scope()->enums.emplace_back(result.maybe_handle);
       break;
     }
     case KeywordType::Class:
     case KeywordType::Struct: {
-      BASE_LOGI(kTag,
+      BASE_LOGI(
+          kTag,
           "Struct/Class are not valid fusion syntax. Use the complex keyword.");
       break;
     }
@@ -148,7 +145,7 @@ ParseResult<ParsedExpressionRef> Parser::ParseExpression(bool has_assignment,
                                                          bool has_ptr) {
   // if this the exp has an assignment, consume it first.
   if (has_assignment && !CheckForToken(TokenType::Equal)) {
-    BASE_LOGI(kTag,"Missing assignment");
+    BASE_LOGI(kTag, "Missing assignment");
     return ParseError::MissingAssignment;
   }
   // the sequence of sub-expressions
@@ -163,21 +160,18 @@ ParseResult<ParsedExpressionRef> Parser::ParseExpression(bool has_assignment,
       stack.push_back(res.maybe_handle);
     }
     if (tiktok.type == TokenType::Eol) {
-      BASE_LOGI(kTag,"ParseExpression(): collected {} operands", stack.size());
+      BASE_LOGI(kTag, "ParseExpression(): collected {} operands", stack.size());
       current_index_++;
       break;
     }
-    if (CheckForToken(TokenType::Comma))
-      break;
-    if (CheckForToken(TokenType::Semicolon))
-      break;
+    if (CheckForToken(TokenType::Comma)) break;
+    if (CheckForToken(TokenType::Semicolon)) break;
   }
 
   auto stack_size = stack.size();
   auto expr = objects_.all_expressions.Create(base::move(stack));
 
-  if (stack_size > 0)
-    return ParseResult<ParsedExpressionRef>(expr.handle);
+  if (stack_size > 0) return ParseResult<ParsedExpressionRef>(expr.handle);
   return ParseResult<ParsedExpressionRef>(ParseError::InvalidExpression);
 }
 
@@ -222,8 +216,7 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
   Token& tok = tokens_[current_index_];
   ParsedOp::Flags flags = ParsedOp::Flags::None;
 
-  if (is_ptr)
-    flags = ParsedOp::Flags::IsPointer;
+  if (is_ptr) flags = ParsedOp::Flags::IsPointer;
 
   switch (tok.type) {
     case TokenType::FloatingNumber:
@@ -231,7 +224,8 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
       const auto expr = objects_.all_ops.Create(ParsedOp::Type::NumericConstant,
                                                 flags, tok.value);
       current_index_++;
-      BASE_LOGI(kTag,"storing a numeric constant ({})", (char*)base::MakeStringCopy(tok.value).c_str());
+      BASE_LOGI(kTag, "storing a numeric constant ({})",
+                (char*)base::MakeStringCopy(tok.value).c_str());
       return ParseResult(expr.handle);
     }
     case TokenType::BinaryNumber:
@@ -242,7 +236,7 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
       const auto expr =
           objects_.all_ops.Create(ParsedOp::Type::NumericConstant, flags, conv);
       current_index_++;
-      BASE_LOGI(kTag,"storing a numeric binary constant");
+      BASE_LOGI(kTag, "storing a numeric binary constant");
       return ParseResult(expr.handle);
     }
     case TokenType::Ampersand: {
@@ -254,21 +248,21 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
       const auto expr = objects_.all_ops.Create(ParsedOp::Type::QuotedString,
                                                 flags, tok.value);
       current_index_++;
-      BASE_LOGI(kTag,"storing a string constant (utf8)");
+      BASE_LOGI(kTag, "storing a string constant (utf8)");
       return ParseResult(expr.handle);
     }
     case TokenType::QuotedStringU16: {
       const auto expr = objects_.all_ops.Create(ParsedOp::Type::QuotedStringU16,
                                                 flags, tok.value);
       current_index_++;
-      BASE_LOGI(kTag,"storing a string constant (utf16)");
+      BASE_LOGI(kTag, "storing a string constant (utf16)");
       return ParseResult(expr.handle);
     }
     case TokenType::QuotedStringU32: {
       const auto expr = objects_.all_ops.Create(ParsedOp::Type::QuotedStringU32,
                                                 flags, tok.value);
       current_index_++;
-      BASE_LOGI(kTag,"storing a string constant (utf32)");
+      BASE_LOGI(kTag, "storing a string constant (utf32)");
       return ParseResult(expr.handle);
     }
     case TokenType::CharacterSequence: {
@@ -294,8 +288,8 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
         return ParseResult(expr.handle);
       }
 
-      BASE_LOGI(kTag,"Storing a variable reference: {}",
-               (char*)base::MakeStringCopy(name_ref).c_str());
+      BASE_LOGI(kTag, "Storing a variable reference: {}",
+                (char*)base::MakeStringCopy(name_ref).c_str());
       // else we treat as variable reference
       const auto expr = objects_.all_ops.Create(
           ParsedOp::Type::VariableReference, flags, name_ref);
@@ -314,7 +308,7 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
           Utf8ToLowercase(&conv);
           const auto expr =
               objects_.all_ops.Create(ParsedOp::Type::Boolean, flags, conv);
-          BASE_LOGI(kTag,"storing a boolean constant");
+          BASE_LOGI(kTag, "storing a boolean constant");
           current_index_++;
           return ParseResult(expr.handle);
           break;
@@ -392,52 +386,42 @@ ParseError Parser::ParseVisiblityDecleration(bool is_public) {
 
 ParseResult<ParsedEnumDeclRef> Parser::ParseEnumDecleration() {
   // Check if we are not out of bounds
-  if (current_index_ >= tokens_.size())
-    return ParseError::InvalidName;
+  if (current_index_ >= tokens_.size()) return ParseError::InvalidName;
   // Parse the enum name
   const auto enum_name = ParseCharacterSequence();
-  if (enum_name.empty())
-    return ParseError::InvalidName;
+  if (enum_name.empty()) return ParseError::InvalidName;
 
   base::Vector<base::StringRefU8> enum_values;
   if (!CheckForToken(TokenType::Colon)) {
     // could be extends
-    if (EatKeyword() != KeywordType::Extends)
-      return ParseError::MissingColon;
+    if (EatKeyword() != KeywordType::Extends) return ParseError::MissingColon;
 
     // it is extends:
     auto extends_name = ParseCharacterSequence();
     auto enum_object = objects_.all_enums.Find(
         [&](ParsedEnumDecl& dd) { return dd.name == extends_name; });
-    if (enum_object == nullptr)
-      return ParseError::MissingParent;
+    if (enum_object == nullptr) return ParseError::MissingParent;
     // copy the values, as parent values come before child values
-    for (auto& val : enum_object->member_values)
-      enum_values.push_back(val);
+    for (auto& val : enum_object->member_values) enum_values.push_back(val);
   }
   const bool was_extended = enum_values.size() > 0;
 
   // Parse the enum type
   if (!was_extended) {
     const auto enum_type = ParseType();
-    if (enum_type.status != ParseError::Success)
-      return ParseError::InvalidName;
+    if (enum_type.status != ParseError::Success) return ParseError::InvalidName;
   }
 
   // Check for opening brace
-  if (!CheckForToken(TokenType::LCurly))
-    return ParseError::MissingBrace;
+  if (!CheckForToken(TokenType::LCurly)) return ParseError::MissingBrace;
 
   // Parse enum values
   while (current_index_ < tokens_.size()) {
-    if (CheckForToken(TokenType::RCurly))
-      break;
+    if (CheckForToken(TokenType::RCurly)) break;
     // Skip empty lines
-    if (CheckForToken(TokenType::Eol))
-      continue;
+    if (CheckForToken(TokenType::Eol)) continue;
     const auto value_name = ParseCharacterSequence();
-    if (value_name.empty())
-      return ParseError::InvalidName;
+    if (value_name.empty()) return ParseError::InvalidName;
     enum_values.push_back(value_name);
     // Check for comma or closing brace
     if (!CheckForToken(TokenType::Comma) && !CheckForToken(TokenType::Eol))
@@ -451,16 +435,13 @@ ParseResult<ParsedEnumDeclRef> Parser::ParseEnumDecleration() {
 
 ParseError Parser::ParseParameterDecleration(ParsedParameterDeclRef& handle) {
   // check *again* that we are not out of bounds.
-  if (current_index_ >= tokens_.size())
-    return ParseError::InvalidName;
+  if (current_index_ >= tokens_.size()) return ParseError::InvalidName;
   const auto parameter_name = ParseCharacterSequence();  // <name>
-  if (parameter_name.empty())
-    return ParseError::InvalidName;
+  if (parameter_name.empty()) return ParseError::InvalidName;
   if (!CheckForToken(TokenType::Colon))  // :
     return ParseError::MissingColon;
   const auto type_name = ParseCharacterSequence();  // <type>
-  if (type_name.empty())
-    return ParseError::InvalidName;
+  if (type_name.empty()) return ParseError::InvalidName;
   const auto maybe_handle =
       objects_.all_types.Create(ParsedType::Type::Name, type_name);
 
@@ -499,10 +480,10 @@ ParseResult<ParsedFunctionDeclRef> Parser::ParseFunctionDecleration() {
     if (CheckForToken(TokenType::RParen))  // )
       break;
 
-    ParsedParameterDeclRef param_handle = (ParsedParameterDeclRef)TranslationUnit::invalid_handle;
+    ParsedParameterDeclRef param_handle =
+        (ParsedParameterDeclRef)TranslationUnit::invalid_handle;
     auto result = ParseParameterDecleration(param_handle);
-    if (param_handle == TranslationUnit::invalid_handle)
-      return result;
+    if (param_handle == TranslationUnit::invalid_handle) return result;
     param_refs.emplace_back(param_handle);
   }
   // function may have a return type ( : <type> )
@@ -553,23 +534,18 @@ ParseResult<ParsedStatementRef> Parser::ParseStatement2() {
     // todo: handle pointers
     // <name>
     const ParseResult<ParsedOpRef> op_result = ParseOperand(false);
-    if (op_result.status != ParseError::Success)
-      return op_result.status;
+    if (op_result.status != ParseError::Success) return op_result.status;
 
     all_my_ops_are_coming_for_you.push_back(op_result.maybe_handle);
     // check for assignment <=>
     if (CheckForToken(TokenType::Equal)) {
       const auto expr_result = ParseExpression(false, false);
-      if (expr_result.status != ParseError::Success)
-        return expr_result.status;
+      if (expr_result.status != ParseError::Success) return expr_result.status;
       expressions.push_back(expr_result.maybe_handle);
     }
-    if (CheckForToken(TokenType::Semicolon))
-      break;
-    if (CheckForToken(TokenType::Eol))
-      break;
-    if (CheckForToken(TokenType::Eof))
-      break;
+    if (CheckForToken(TokenType::Semicolon)) break;
+    if (CheckForToken(TokenType::Eol)) break;
+    if (CheckForToken(TokenType::Eof)) break;
   }
 
   // create a "root" expression
@@ -577,8 +553,8 @@ ParseResult<ParsedStatementRef> Parser::ParseStatement2() {
       objects_.all_expressions.Create(base::move(all_my_ops_are_coming_for_you))
           .handle);
 
-  BASE_LOGI(kTag,"ParseStatement2(): collected {} operands",
-           all_my_ops_are_coming_for_you.size());
+  BASE_LOGI(kTag, "ParseStatement2(): collected {} operands",
+            all_my_ops_are_coming_for_you.size());
   // For now consider it done:
   // okay there is something we can attach the op to.
   auto parsedexpression = objects_.all_expressions.Create(
@@ -601,8 +577,7 @@ ParseResult<ParsedStatementRef> Parser::ParseReturnStatement() {
   base::Vector<ParsedExpressionRef> return_expressions;
 
   auto expr = ParseExpression(false, false);
-  if (expr.status != ParseError::Success)
-	return expr.status;
+  if (expr.status != ParseError::Success) return expr.status;
 
   // TODOTODOTODO: handle multiple return values
   // these would work like this:
@@ -642,20 +617,18 @@ ParseError Parser::ParseFunctionBody() {
           }
           case KeywordType::Return: {
             const auto res = ParseReturnStatement();
-            if (res.status != ParseError::Success)
-              return res.status;
+            if (res.status != ParseError::Success) return res.status;
             body.AddObject(TU::ObjectType::Statement, res.maybe_handle);
             break;
           }
           default: {
             // This might be a function call or an assignment
-            BASE_LOGI(kTag,"VALUEEEEEEEEEEEEE: {}",
-                     (char*)base::MakeStringCopy(val).c_str());
+            BASE_LOGI(kTag, "VALUEEEEEEEEEEEEE: {}",
+                      (char*)base::MakeStringCopy(val).c_str());
             const auto expr_result = ParseStatement2();
-            if (expr_result.status != ParseError::Success)
-              break;
+            if (expr_result.status != ParseError::Success) break;
             body.AddObject(TU::ObjectType::Statement, expr_result.maybe_handle);
-            BASE_LOGI(kTag,"PARSE SUCCECSS YAY!!!!");
+            BASE_LOGI(kTag, "PARSE SUCCECSS YAY!!!!");
             break;
           }
         }
@@ -670,22 +643,18 @@ ParseError Parser::ParseFunctionBody() {
 
 ParseError Parser::ParseComplexDecleration(bool is_public) {
   const auto name_ref = ParseCharacterSequence();
-  if (name_ref.length() == 0)
-    return ParseError::InvalidName;
+  if (name_ref.length() == 0) return ParseError::InvalidName;
 
   // generic
   // <
   if (CheckForToken(TokenType::LessThan)) {
     // T
     const auto generic_name_ref = ParseCharacterSequence();
-    if (generic_name_ref.length() == 0)
-      return ParseError::InvalidName;
+    if (generic_name_ref.length() == 0) return ParseError::InvalidName;
     // Make sure its T, for now
-    if (generic_name_ref.data()[0] != u8'T')
-      return ParseError::InvalidName;
+    if (generic_name_ref.data()[0] != u8'T') return ParseError::InvalidName;
     // =
-    if (!CheckForToken(TokenType::Equal))
-      return ParseError::UnexpectedEnding;
+    if (!CheckForToken(TokenType::Equal)) return ParseError::UnexpectedEnding;
     // <type>
     const ParseResult type = ParseType();
     if (!CheckForToken(TokenType::GreaterThan))
@@ -723,24 +692,38 @@ ParseError Parser::ParseComplexDecleration(bool is_public) {
   return ParseError::Success;
 }
 
-ParseError Parser::ParseAliasDeclerationl() {
-  return ParseError();
-}
+ParseError Parser::ParseAliasDeclerationl() { return ParseError(); }
 
 // https://github.com/SerenityOS/jakt/blob/30563dbef0f77aad663aa14cf76f4fb1727f0947/src/parser.rs#L2037
 // let binary_number_2 : i32 = 0B0101;
 // let utf8_str :        c8& = "Hello, World!";
 ParseError Parser::ParseVariableDecleration(
-    bool is_const /*let for const, or var for mutable*/) {
-  // let/var nmame : aaa = b;
-  const auto name_ref = ParseCharacterSequence();  // nmame
-  if (name_ref.empty())
-    return ParseError::InvalidName;
+    bool is_let_const /*let for const, or var for mutable*/) {
+  // let/var name : aaa = b;
+  const auto name_ref = ParseCharacterSequence();  // name
+  if (name_ref.empty()) return ParseError::InvalidName;
 
-  BASE_LOGI(kTag,"Parse attempt: {}", (char*)base::MakeStringCopy(name_ref).c_str());
+  BASE_LOGI(kTag, "Parse attempt: {}",
+            (char*)base::MakeStringCopy(name_ref).c_str());
 
   // type is provided.
-  if (CheckForToken(TokenType::Colon)) {          // :
+  // let name : aaa = b; <- aaa
+  // or we must handle an array decleration
+  // which looks like: let Logo : [c8, ...] <- array decleration
+  if (CheckForToken(TokenType::Colon)) {  // :
+
+    if (CheckForToken(TokenType::LParen)) { // [ <- array begin
+      const ParseResult parsed_type = ParseType();  // c8 for example
+      if (CheckForToken(TokenType::Comma)) {
+        bool is_unbounded = CheckForToken(TokenType::DotDotDot);
+        if (!is_unbounded) {
+          // might be a number
+
+        }
+      }
+
+    }
+
     const ParseResult parsed_type = ParseType();  // aaa
 
     // a ptr decleration might follow, such as
@@ -750,24 +733,15 @@ ParseError Parser::ParseVariableDecleration(
     const ParseResult<ParsedExpressionRef> expr_result =
         ParseExpression(true, is_ptr);  // = something
 
-    /*
-  explicit ParsedVariableDecl(const base::StringRefU8 name,
-                              const bool is_const,
-                              const Linkage linkage,
-                              const Visibility visibility,
-                              const ParsedTypeRef parsed_type,
-                              const ParsedExpressionRef assignment)*/
-    auto obj =
-        expr_result.status == ParseError::Success
-            ? objects_.all_variables.Create(
-                  name_ref,
-                  is_const,
-                Linkage::External,
-                Visibility::Private,
-                  parsed_type.maybe_handle, expr_result.maybe_handle)
-            : objects_.all_variables.Create(
-                  name_ref, is_const, Linkage::External, Visibility::Private,
-                  parsed_type.maybe_handle, (ParsedExpressionRef)TU::invalid_handle);
+    auto obj = expr_result.status == ParseError::Success
+                   ? objects_.all_variables.Create(
+                         name_ref, is_let_const, Linkage::External,
+                         Visibility::Private, parsed_type.maybe_handle,
+                         expr_result.maybe_handle)
+                   : objects_.all_variables.Create(
+                         name_ref, is_let_const, Linkage::External,
+                         Visibility::Private, parsed_type.maybe_handle,
+                         (ParsedExpressionRef)TU::invalid_handle);
 
     objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
     return ParseError::Success;
@@ -777,22 +751,23 @@ ParseError Parser::ParseVariableDecleration(
   else if (Peek().type == TokenType::Equal) {
     auto obj = objects_.all_variables.Create(
         name_ref, is_const, Linkage::External, Visibility::Private,
-        (ParsedTypeRef)TU::invalid_handle, (ParsedExpressionRef)TU::invalid_handle);
+        (ParsedTypeRef)TU::invalid_handle,
+        (ParsedExpressionRef)TU::invalid_handle);
 
     objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
-    BASE_LOGI(kTag,"Parsing auto type..");
+    BASE_LOGI(kTag, "Parsing auto type..");
 
     return ParseError::Success;
   } else {
-    BASE_LOGI(kTag,"Peek type: {} unknown.. owie.. ", static_cast<i32>(Peek().type));
+    BASE_LOGI(kTag, "Peek type: {} unknown.. owie.. ",
+              static_cast<i32>(Peek().type));
     return ParseError::InvalidTypeDecleration;
   }
 }
 
 ParseError Parser::ParseImport() {
   const auto name_ref = ParseString();
-  if (name_ref.empty())
-    return ParseError::InvalidName;
+  if (name_ref.empty()) return ParseError::InvalidName;
   // store the token.
   current_index_++;
 
@@ -804,8 +779,7 @@ ParseError Parser::ParseImport() {
 
 ParseError Parser::ParseExternDecl() {
   const auto name_ref = ParseString();
-  if (name_ref.empty())
-    return ParseError::InvalidName;
+  if (name_ref.empty()) return ParseError::InvalidName;
   // if (name_ref == u8"c")
   //   return ParseError::Success;
   return ParseError::Unknown;

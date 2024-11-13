@@ -21,8 +21,7 @@ inline base::StringU8 IntToString(int value) {
 }
 
 inline base::StringU8 ConvertNumericRepresentation(
-    const insane::TokenType tt,
-    const base::StringRefU8 data) {
+    const insane::TokenType tt, const base::StringRefU8 data) {
   if (tt == insane::TokenType::BinaryNumber) {
     int decimal = 0;
     for (size_t i = 0; i < data.size(); i++) {
@@ -68,4 +67,4 @@ inline base::StringU8 ConvertNumericRepresentation(
   // Error: Unknown token type
   return u8"";
 }
-}
+}  // namespace insane

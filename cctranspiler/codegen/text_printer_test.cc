@@ -1,7 +1,9 @@
 
-#include "gtest/gtest.h"
 #include "text_printer.h"
+
 #include <base/strings/string_compare.h>
+
+#include "gtest/gtest.h"
 
 namespace {
 using namespace insane;
@@ -29,7 +31,8 @@ TEST(PrinterTest, SingleVariableSubstitution) {
       {u8"type_name", u8"int"},
   };
   auto expectedOutput = u8"private int MyBitFieldName;\n";
-  printer.PrintStack(u8"private $type_name$ $bit_field_name$;\n", replacements, 2);
+  printer.PrintStack(u8"private $type_name$ $bit_field_name$;\n", replacements,
+                     2);
   EXPECT_TRUE(base::Strcmp(expectedOutput, printer.buffer().c_str()) == 0);
 }
 }  // namespace
