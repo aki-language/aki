@@ -1,0 +1,33 @@
+// simple variable declarations
+let var1: bool = true;
+var var2: bool = false;
+
+let var3: i32 = 1;
+var var4: i32 = 2;
+
+let var5: f32 = 1.0;
+var var6: f32 = 2.0;
+
+let var7: f64 = 1.0;
+var var8: f64 = 2.0;
+
+// array syntax
+let var9: [c8, 5] = ['h', 'e', 'l', 'l', 'o'];
+let var10: [c8, ...] = ['w', 'o', 'r', 'l', 'd'];
+
+let var11: [i32, 5] = [1, 2, 3, 4, 5];
+let var12: [i32, ...] = [6, 7, 8, 9, 10];
+
+// strings
+let var13: [c8, 5] = "hello";
+let var14: [c8, ...] = "world";
+
+let var15: c8& = "hello";
+
+let raw_string = raw"This is my raw string
+It can span multiple lines
+And it doesn't need to escape characters like \n or \t";
+
+let raw_string_2 = raw"
+This is my raw string
+It wont contain a newline at the start";
