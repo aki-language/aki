@@ -13,13 +13,14 @@
 #include "grammar/token.h"
 #include "keyword.h"
 #include "numeric_format.h"
+#include "projects/nemisis3/external/capstone/include/capstone/arm.h"
 
 namespace insane {
 constexpr char kTag[] = "langparser";
 
 // NOTE(Vince): this class exists on a per translation unit basis. therefore it
 // has no knowledge of the other translation units (functions, variables etc
-// defined within other sane source files).
+// defined within other aki source files).
 Parser::Parser(base::Vector<Token> tokens) : tokens_(base::move(tokens)) {}
 
 void Parser::ParseTokens() {
@@ -123,92 +124,6 @@ ParseError Parser::ConsumeKeyword(
   }
 
   return ParseError::Unknown;
-}
-
-// Examples of expressions:
-// Example 1: Simple arithmetic expression
-// result = x + y - 3 * z / 2;
-
-// Example 2: Boolean expression
-// isValid = (a > 10) && (b < 20) || (c == 0);
-
-// Example 3: Function call expression
-// area = computeCircleArea(radius);
-
-// Example 4: Array access expression
-// value = myArray[index];
-
-// Example 5: Ternary operator expression
-// message = (age >= 18) ? "Adult" : "Minor";
-// WARNING: there musnt be recursive calls to parseexpression
-ParseResult<ParsedExpressionRef> Parser::ParseExpression(bool has_assignment,
-                                                         bool has_ptr) {
-  // if this the exp has an assignment, consume it first.
-  if (has_assignment && !CheckForToken(TokenType::Equal)) {
-    BASE_LOGI(kTag, "Missing assignment");
-    return ParseError::MissingAssignment;
-  }
-  // the sequence of sub-expressions
-  base::Vector<ParsedOpRef> stack;
-
-  while (true) {
-    Token& tiktok = tokens_[current_index_];
-    // try consuming all the operands first
-    const ParseResult<ParsedOpRef> res = ParseOperand(has_ptr);
-    if (res) {
-      // parsedop
-      stack.push_back(res.maybe_handle);
-    }
-    if (tiktok.type == TokenType::Eol) {
-      BASE_LOGI(kTag, "ParseExpression(): collected {} operands", stack.size());
-      current_index_++;
-      break;
-    }
-    if (CheckForToken(TokenType::Comma)) break;
-    if (CheckForToken(TokenType::Semicolon)) break;
-  }
-
-  auto stack_size = stack.size();
-  auto expr = objects_.all_expressions.Create(base::move(stack));
-
-  if (stack_size > 0) return ParseResult<ParsedExpressionRef>(expr.handle);
-  return ParseResult<ParsedExpressionRef>(ParseError::InvalidExpression);
-}
-
-static void Utf8ToLowercase(base::StringU8* str) {
-  if (str->empty()) {
-    return;
-  }
-
-  char8_t* data = &(*str)[0];
-  size_t length = str->length();
-  size_t i = 0;
-
-  while (i < length) {
-    unsigned char c = static_cast<unsigned char>(data[i]);
-    if (c < 128) {
-      // ASCII character
-      data[i] = tolower(c);
-      i++;
-    } else if ((c & 0xE0) == 0xC0 && i + 1 < length) {
-      // 2-byte UTF-8 sequence
-      if (c == 0xC3 && static_cast<unsigned char>(data[i + 1]) >= 0x80 &&
-          static_cast<unsigned char>(data[i + 1]) <= 0x9E) {
-        // Latin-1 Supplement uppercase
-        data[i + 1] += 0x20;
-      }
-      i += 2;
-    } else if ((c & 0xF0) == 0xE0 && i + 2 < length) {
-      // 3-byte UTF-8 sequence
-      i += 3;
-    } else if ((c & 0xF8) == 0xF0 && i + 3 < length) {
-      // 4-byte UTF-8 sequence
-      i += 4;
-    } else {
-      // Invalid UTF-8 sequence, skip
-      i++;
-    }
-  }
 }
 
 // returns a ParsedOp handle
@@ -327,6 +242,92 @@ ParseResult<ParsedOpRef> Parser::ParseOperand(const bool is_ptr) {
   }
 
   return ParseResult<ParsedOpRef>(ParseError::InvalidOperand);
+}
+
+// Examples of expressions:
+// Example 1: Simple arithmetic expression
+// result = x + y - 3 * z / 2;
+
+// Example 2: Boolean expression
+// isValid = (a > 10) && (b < 20) || (c == 0);
+
+// Example 3: Function call expression
+// area = computeCircleArea(radius);
+
+// Example 4: Array access expression
+// value = myArray[index];
+
+// Example 5: Ternary operator expression
+// message = (age >= 18) ? "Adult" : "Minor";
+// WARNING: there musnt be recursive calls to parseexpression
+ParseResult<ParsedExpressionRef> Parser::ParseExpression(bool has_assignment,
+                                                         bool has_ptr) {
+  // if this the exp has an assignment, consume it first.
+  if (has_assignment && !CheckForToken(TokenType::Equal)) {
+    BASE_LOGI(kTag, "Missing assignment");
+    return ParseError::MissingAssignment;
+  }
+  // the sequence of sub-expressions
+  base::Vector<ParsedOpRef> stack;
+
+  while (true) {
+    Token& tiktok = tokens_[current_index_];
+    // try consuming all the operands first
+    const ParseResult<ParsedOpRef> res = ParseOperand(has_ptr);
+    if (res) {
+      // parsedop
+      stack.push_back(res.maybe_handle);
+    }
+    if (tiktok.type == TokenType::Eol) {
+      BASE_LOGI(kTag, "ParseExpression(): collected {} operands", stack.size());
+      current_index_++;
+      break;
+    }
+    if (CheckForToken(TokenType::Comma)) break;
+    if (CheckForToken(TokenType::Semicolon)) break;
+  }
+
+  auto stack_size = stack.size();
+  auto expr = objects_.all_expressions.Create(base::move(stack));
+
+  if (stack_size > 0) return ParseResult<ParsedExpressionRef>(expr.handle);
+  return ParseResult<ParsedExpressionRef>(ParseError::InvalidExpression);
+}
+
+static void Utf8ToLowercase(base::StringU8* str) {
+  if (str->empty()) {
+    return;
+  }
+
+  char8_t* data = &(*str)[0];
+  size_t length = str->length();
+  size_t i = 0;
+
+  while (i < length) {
+    unsigned char c = static_cast<unsigned char>(data[i]);
+    if (c < 128) {
+      // ASCII character
+      data[i] = tolower(c);
+      i++;
+    } else if ((c & 0xE0) == 0xC0 && i + 1 < length) {
+      // 2-byte UTF-8 sequence
+      if (c == 0xC3 && static_cast<unsigned char>(data[i + 1]) >= 0x80 &&
+          static_cast<unsigned char>(data[i + 1]) <= 0x9E) {
+        // Latin-1 Supplement uppercase
+        data[i + 1] += 0x20;
+      }
+      i += 2;
+    } else if ((c & 0xF0) == 0xE0 && i + 2 < length) {
+      // 3-byte UTF-8 sequence
+      i += 3;
+    } else if ((c & 0xF8) == 0xF0 && i + 3 < length) {
+      // 4-byte UTF-8 sequence
+      i += 4;
+    } else {
+      // Invalid UTF-8 sequence, skip
+      i++;
+    }
+  }
 }
 
 ParseError Parser::ParseNamespace() {
@@ -698,80 +699,77 @@ ParseError Parser::ParseAliasDeclerationl() { return ParseError(); }
 // let binary_number_2 : i32 = 0B0101;
 // let utf8_str :        c8& = "Hello, World!";
 ParseError Parser::ParseVariableDecleration(
-    bool is_let_const /*let for const, or var for mutable*/) {
-  // let/var name : aaa = b;
-  const auto name_ref = ParseCharacterSequence();  // name
-  if (name_ref.empty()) return ParseError::InvalidName;
+    bool is_const /*let for const, or var for mutable*/) {
+  // let/var nmame : aaa = b;
+  const auto name_ref = ParseCharacterSequence();  // nmame
+  if (name_ref.empty())
+    return ParseError::InvalidName;
 
-  BASE_LOGI(kTag, "Parse attempt: {}",
-            (char*)base::MakeStringCopy(name_ref).c_str());
-
-  ParseResult parsed_type;
+  BASE_LOGI(kTag,"Parse attempt: {}", (char*)base::MakeStringCopy(name_ref).c_str());
 
   // type is provided.
-  // let name : aaa = b; <- aaa
-  // or we must handle an array decleration
-  // which looks like: let Logo : [c8, ...] <- array decleration
-  if (CheckForToken(TokenType::Colon)) {  // :
-    if (CheckForToken(TokenType::LParen)) {         // [ <- array begin
-      parsed_type = ParseType();  // c8 for example
-      if (CheckForToken(TokenType::Comma)) {
-        bool is_unbounded = CheckForToken(TokenType::DotDotDot);
-        if (!is_unbounded) {
-          // might be a number
-          const auto number = ParseCharacterSequence();
-          if (number.empty()) return ParseError::InvalidName;
+  if (CheckForToken(TokenType::Colon)) {          // :
+    const bool is_array = CheckForToken(TokenType::LSquare);
+    BASE_LOGI(kTag, "Array: {}", is_array ? "true" : "false");
 
-          if (!CheckForToken(TokenType::RParen))
-            return ParseError::UnexpectedEnding;
-        } else {
-            if (!CheckForToken(TokenType::RParen))
-                return ParseError::UnexpectedEnding;
+    ParseResult<ParsedTypeRef> parsed_type;
+    if (!is_array)
+      parsed_type = ParseType();  // aaa
+    else if (is_array) {
+      // [i32, ...] or [i32, 10] are allowed
+      parsed_type = ParseType();
+      if (parsed_type.status != ParseError::Success) return parsed_type.status;
+      if (!CheckForToken(TokenType::Comma)) return ParseError::UnexpectedEnding; // ,
+      bool is_unbounded = CheckForToken(TokenType::DotDotDot); // ...
+      BASE_LOGI(kTag, "Array is Unbounded: {}", is_unbounded ? "true" : "false");
+      if (is_unbounded) { // [i32, ...]
+        if (!CheckForToken(TokenType::RSquare)) {
+          BASE_LOGW(kTag, "Expected closing bracket for array decleration");
+          return ParseError::UnexpectedEnding;// WARNING CAUSES INFINITE LOOP
         }
+      } else { // exact array size: [i32, 10]
+        // TBD
       }
     }
-  } else {
-    // follows directly after the name
-    parsed_type = ParseType();  // aaa
-  }
-  // a ptr decleration might follow, such as
-  // let utf8_ptr :        c8& = "Hello, World!";
-  const bool is_ptr = CheckForToken(TokenType::Ampersand);
 
-  const ParseResult<ParsedExpressionRef> expr_result =
-      ParseExpression(true, is_ptr);  // = something
+    // a ptr decleration might follow, such as
+    // let utf8_ptr :        c8& = "Hello, World!";
+    const bool is_ptr = CheckForToken(TokenType::Ampersand);
 
-  auto obj =
-      expr_result.status == ParseError::Success
-          ? objects_.all_variables.Create(
-                name_ref, is_let_const, Linkage::External, Visibility::Private,
+    // read out the assignment (=something)
+    const ParseResult<ParsedExpressionRef> expr_result =
+        ParseExpression(true, is_ptr);
+
+    auto obj =
+        expr_result.status == ParseError::Success
+            ? objects_.all_variables.Create(
+                  name_ref,
+                  is_const,
+                Linkage::External,
+                Visibility::Private,
                 parsed_type.maybe_handle, expr_result.maybe_handle)
-          : objects_.all_variables.Create(
-                name_ref, is_let_const, Linkage::External, Visibility::Private,
-                parsed_type.maybe_handle,
-                (ParsedExpressionRef)TU::invalid_handle);
+            : objects_.all_variables.Create(
+                  name_ref, is_const, Linkage::External, Visibility::Private,
+                  parsed_type.maybe_handle, (ParsedExpressionRef)TU::invalid_handle);
 
-  objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
-  return ParseError::Success;
-}
-// immedeate assignment (auto type deduction)
-// no point in parsing...
-else if (Peek().type == TokenType::Equal) {
-  auto obj = objects_.all_variables.Create(
-      name_ref, is_const, Linkage::External, Visibility::Private,
-      (ParsedTypeRef)TU::invalid_handle,
-      (ParsedExpressionRef)TU::invalid_handle);
+    objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
+    return ParseError::Success;
+  }
+  // immedeate assignment (auto type deduction)
+  // no point in parsing...
+  else if (Peek().type == TokenType::Equal) {
+    auto obj = objects_.all_variables.Create(
+        name_ref, is_const, Linkage::External, Visibility::Private,
+        (ParsedTypeRef)TU::invalid_handle, (ParsedExpressionRef)TU::invalid_handle);
 
-  objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
-  BASE_LOGI(kTag, "Parsing auto type..");
+    objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
+    BASE_LOGI(kTag,"Parsing auto type..");
 
-  return ParseError::Success;
-}
-else {
-  BASE_LOGI(kTag, "Peek type: {} unknown.. owie.. ",
-            static_cast<i32>(Peek().type));
-  return ParseError::InvalidTypeDecleration;
-}
+    return ParseError::Success;
+  } else {
+    BASE_LOGI(kTag,"Peek type: {} unknown.. owie.. ", static_cast<i32>(Peek().type));
+    return ParseError::InvalidTypeDecleration;
+  }
 }
 
 ParseError Parser::ParseImport() {

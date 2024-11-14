@@ -45,7 +45,7 @@ template <typename T = obj_handle>
 struct ParseResult {
   using handle_type = T;
 
-  const ParseError status;
+  ParseError status;
   handle_type maybe_handle;
 
   // empty constructor

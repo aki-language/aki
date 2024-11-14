@@ -160,9 +160,9 @@ void CCodeGen::EmitVariable(const TranslationUnit& unit,
   base::StringU8 c_type = ResolveTypeBit(type_core);
 
   printer_.Print(
-      u8"$is_hidden$ $is_const$$type_decl$$is_pointed$ $variable_name$",
+      u8"$is_hidden$$is_const$$type_decl$$is_pointed$$variable_name$",
       TS{u8"is_hidden",
-         decl.visibility == Visibility::Private ? u8"static" : u8""},
+         decl.visibility == Visibility::Private ? u8"static " : u8""},
       TS{u8"is_const", decl.is_const ? u8"const " : u8""},
       TS{u8"is_pointed",
          operation

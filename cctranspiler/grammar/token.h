@@ -6,23 +6,23 @@
 namespace insane {
 enum class TokenType {
   Unknown,
-  Semicolon,
-  Colon,
-  ColonColon,
-  Plus,
-  PlusPlus,
-  PlusEquals,
-  Minus,
-  MinusMinus,
-  MinusEquals,
-  AsteriskEqual,
-  Asterisk,
-  ForwardSlash,
-  ForwardSlashEqual,
-  Equal,
-  DoubleEqual,
-  FatArrow,
-  GreaterThanOrEqual,
+  Semicolon, // ;
+  Colon, // :
+  ColonColon, // ::
+  Plus, // +
+  PlusPlus, // ++
+  PlusEquals, // +=
+  Minus, // -
+  MinusMinus, // --
+  MinusEquals, // -=
+  AsteriskEqual, // *=
+  Asterisk,     // *
+  ForwardSlash, // /
+  ForwardSlashEqual, // /=
+  Equal, // =
+  DoubleEqual, // ==
+  FatArrow, // =>
+  GreaterThanOrEqual, // >=
   RightShiftEqual,
   RightArithmeticShift,
   RightShift,
@@ -52,12 +52,12 @@ enum class TokenType {
   Dot,
   DotDot,
   DotDotDot,
-  LParen,
-  RParen,
-  LCurly,
-  RCurly,
-  LSquare,
-  RSquare,
+  LParen, // (
+  RParen, // )
+  LCurly, // {
+  RCurly, // }
+  LSquare,// [
+  RSquare,// ]
   Eol,
   Eof,
   QuotedString,
