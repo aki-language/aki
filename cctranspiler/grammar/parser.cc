@@ -15,7 +15,7 @@
 #include "numeric_format.h"
 #include "projects/nemisis3/external/capstone/include/capstone/arm.h"
 
-namespace insane {
+namespace aki {
 static void Utf8ToLowercase(base::StringU8* str) {
   if (str->empty()) {
     return;
@@ -83,7 +83,7 @@ void Parser::ParseTokens() {
 
 KeywordType Parser::EatKeyword() {
   const Token& type = tokens_[current_index_];
-  insane::KeywordType kwd = MatchKeyword(type.value);
+  KeywordType kwd = MatchKeyword(type.value);
   bool is_match = kwd != KeywordType::Unknown;
   if (is_match) current_index_++;
   // should switch these to array access keyword_array[index] instead of this
@@ -591,7 +591,7 @@ ParseResult<ParsedStatementRef> Parser::ParseReturnStatement() {
 }
 
 ParseError Parser::ParseFunctionBody() {
-  insane::TU::Scope& body = *objects_.current_scope();
+  aki::TU::Scope& body = *objects_.current_scope();
   // parse the body
   while (true) {
     auto top_val = current_index_;

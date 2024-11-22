@@ -121,7 +121,7 @@ bool HandleCommandLineOptions(base::CommandLine& command_line) {
 }
 
 bool HandleEvalMode(base::CommandLine& command_line,
-                    insane::InsaneTranspiler& app) {
+                    aki::CCTranspiler& app) {
   if (!eval_mode) return true;
 
   const auto idx = command_line.FindSwitchIndex(u8"eval");
@@ -160,14 +160,16 @@ int main(int argc, char** argv) {
   }
 
   SetKnobsFromCommandLine(command_line);
-  auto app = base::MakeUnique<insane::InsaneTranspiler>();
+
+  // keep large object on the heap
+  auto app{base::MakeUnique<aki::CCTranspiler>()};
 
   if (!HandleEvalMode(command_line, *app)) {
     return 0;
   }
 
   const auto positional_index = command_line.FindPositionalArgumentsIndex();
-  insane::InsaneTranspiler::file_list input_source_paths;
+  aki::CCTranspiler::file_list input_source_paths;
 
   for (mem_size i = positional_index; i < command_line.parameter_count(); i++) {
     if (!base::PathExists(command_line[i])) {

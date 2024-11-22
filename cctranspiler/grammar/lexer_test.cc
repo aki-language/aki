@@ -5,12 +5,12 @@
 #include <gtest/gtest.h>
 
 namespace {
-using namespace insane;
+using namespace aki;
 
 TEST(Lexer, TestSimpleTokens) {}
 
 TEST(Lexer, ParseNumber) {
-  insane::Lexer lex;
+  aki::Lexer lex;
   lex.Parse(u8"f32 floating_point = 1.2345;");
 
   auto& tokens = lex.tokens();

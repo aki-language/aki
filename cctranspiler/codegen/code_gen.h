@@ -4,7 +4,7 @@
 
 #include "base/strings/string_ref.h"
 
-namespace insane {
+namespace aki {
 struct TranslationUnit;
 
 class CodeGen {

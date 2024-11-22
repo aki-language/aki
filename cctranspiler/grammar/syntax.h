@@ -12,7 +12,7 @@
 #include "base/optional.h"
 #include "token.h"
 
-namespace insane {
+namespace aki {
 using obj_handle = u64;
 
 #define AST_HANDLE(class_name)                              \

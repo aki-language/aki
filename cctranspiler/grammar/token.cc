@@ -2,7 +2,7 @@
 
 #include "token.h"
 
-namespace insane {
+namespace aki {
 namespace {
 const char* const kTokenTypeToNames[] = {"unknown",
                                          "semicolon",

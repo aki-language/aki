@@ -7,7 +7,7 @@
 #include "c_code_gen.h"
 #include "cc_code_gen.h"
 
-namespace insane {
+namespace aki {
 namespace {
 enum class CodegenTargets {
   None,

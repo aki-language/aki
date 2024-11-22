@@ -4,7 +4,7 @@
 #include <base/strings/string_ref.h>
 
 // IDEA(Vince): a by keyword?
-namespace insane {
+namespace aki {
 enum class KeywordType {
   As,  // type as other_type;
 

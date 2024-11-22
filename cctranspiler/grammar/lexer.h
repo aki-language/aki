@@ -8,7 +8,7 @@
 
 #include "token.h"
 
-namespace insane {
+namespace aki {
 
 // The lexer splits the input stream into tokens.
 class Lexer {

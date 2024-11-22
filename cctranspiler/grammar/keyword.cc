@@ -2,7 +2,7 @@
 
 #include "keyword.h"
 
-namespace insane {
+namespace aki {
 namespace {
 inline bool StringMatchSafe(const char8_t* lhs, const char8_t* rhs,
                             mem_size limit, mem_size& length) {

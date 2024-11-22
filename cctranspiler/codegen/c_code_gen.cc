@@ -22,7 +22,7 @@ base::Knob<bool> EmitAutoGenHeader{true};
 
 // version::kU8LanguageEdition
 
-namespace insane {
+namespace aki {
 using TS = TextPrinter::Substitution;
 
 namespace {

@@ -5,7 +5,7 @@
 #include "lexer.h"
 
 namespace {
-using namespace insane;
+using namespace aki;
 
 TEST(Parser, TestA) {}
 }  // namespace

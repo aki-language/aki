@@ -5,7 +5,7 @@
 
 #include "code_gen.h"
 
-namespace insane {
+namespace aki {
 // Create a code emitter from a given backend
 base::UniquePointer<CodeGen> CreateCodeGenerator();
 }  // namespace insane

@@ -9,7 +9,7 @@
 #include "object_pool.h"
 #include "syntax.h"
 
-namespace insane {
+namespace aki {
 #define AST_POOL(class_name, name) \
   ObjectPool<class_name, class_name##Ref, obj_handle> all_##name
 

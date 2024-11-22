@@ -7,7 +7,7 @@
 #include "code_gen.h"
 #include "text_printer.h"
 
-namespace insane {
+namespace aki {
 // NOTE(Vince): This is a very simple code emitter that only supports emitting C
 // code, which is awesome for portability during the early stages of this
 // project.

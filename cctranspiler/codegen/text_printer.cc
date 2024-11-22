@@ -9,7 +9,7 @@
 #include "base/arch.h"
 #include "base/strings/string_ref.h"
 
-namespace insane {
+namespace aki {
 TextPrinter::TextPrinter(base::StringU8& buffer)
     : current_intendation_level_(0), buffer_(buffer) {}
 

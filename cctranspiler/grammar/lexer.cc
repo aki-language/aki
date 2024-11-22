@@ -7,7 +7,7 @@
 #include "base/arch.h"
 #include "base/compiler.h"
 
-namespace insane {
+namespace aki {
 
 namespace {
 

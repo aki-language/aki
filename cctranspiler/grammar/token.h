@@ -3,7 +3,7 @@
 
 #include <base/strings/string_ref.h>
 
-namespace insane {
+namespace aki {
 enum class TokenType {
   Unknown,
   Semicolon,           // ;

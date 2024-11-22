@@ -7,11 +7,11 @@
 #include <tbb/task_scheduler_observer.h>
 #include <tbb/tbb.h>
 
-namespace insane {
+namespace aki {
 
-class InsaneTranspiler {
+class CCTranspiler {
  public:
-  InsaneTranspiler();
+  CCTranspiler();
 
   using file_list = base::Vector<base::Path>;
 

@@ -23,7 +23,7 @@ namespace {
 constexpr char kTag[] = "aki-transpiler";
 }  // namespace
 
-namespace insane {
+namespace aki {
 std::unique_ptr<byte[]> LoadFile(const base::Path& file_path) {
   i64 size = 0;
   auto bytes = base::LoadFile(file_path, &size);
@@ -41,9 +41,9 @@ std::unique_ptr<byte[]> LoadFile(const base::Path& file_path) {
   return bytes;
 }
 
-InsaneTranspiler::InsaneTranspiler() {}
+CCTranspiler::CCTranspiler() {}
 
-void InsaneTranspiler::ProcessSourceFiles(
+void CCTranspiler::ProcessSourceFiles(
     const file_list& input_file_canidates) {
   base::Vector<std::unique_ptr<byte[]>> file_contents;
 
@@ -65,15 +65,15 @@ void InsaneTranspiler::ProcessSourceFiles(
   });
 }
 
-void InsaneTranspiler::ParseText(const base::StringRefU8 text,
+void CCTranspiler::ParseText(const base::StringRefU8 text,
                                  const bool is_eval_mode) {
   // step 1: lexer is allowed to live on stack, only stores a vector.
   // this splits the text into tokens, without any syntax comprehension.
-  insane::Lexer lexer;
+  aki::Lexer lexer;
   lexer.Parse(text);
 
   // step 2: parse the tokens into an AST.
-  insane::Parser parser(base::move(lexer.tokens()));
+  aki::Parser parser(base::move(lexer.tokens()));
   parser.ParseTokens();
 
   // for now, we just generate code individually for each unit.

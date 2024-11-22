@@ -9,7 +9,7 @@
 #include "token.h"
 #include "translation_unit.h"
 
-namespace insane {
+namespace aki {
 enum class ParseError {
   Unknown = 0,
   Success,
@@ -127,6 +127,6 @@ class Parser {
   // int current_{0};
 
   // for now
-  insane::TranslationUnit objects_;
+  aki::TranslationUnit objects_;
 };
 }  // namespace insane

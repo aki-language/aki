@@ -1,7 +1,7 @@
 #pragma once
 #include <grammar/token.h>
 
-namespace insane {
+namespace aki {
 // Helper function to convert an integer to a string
 inline base::StringU8 IntToString(int value) {
   base::StringU8 result;
@@ -21,8 +21,8 @@ inline base::StringU8 IntToString(int value) {
 }
 
 inline base::StringU8 ConvertNumericRepresentation(
-    const insane::TokenType tt, const base::StringRefU8 data) {
-  if (tt == insane::TokenType::BinaryNumber) {
+    const aki::TokenType tt, const base::StringRefU8 data) {
+  if (tt == aki::TokenType::BinaryNumber) {
     int decimal = 0;
     for (size_t i = 0; i < data.size(); i++) {
       if (data[i] == '1') {
@@ -35,7 +35,7 @@ inline base::StringU8 ConvertNumericRepresentation(
       }
     }
     return base::StringU8(IntToString(decimal));
-  } else if (tt == insane::TokenType::HexNumber) {
+  } else if (tt == aki::TokenType::HexNumber) {
     int decimal = 0;
     for (size_t i = 0; i < data.size(); i++) {
       int digit = 0;
@@ -52,7 +52,7 @@ inline base::StringU8 ConvertNumericRepresentation(
       decimal = decimal * 16 + digit;
     }
     return base::StringU8(IntToString(decimal));
-  } else if (tt == insane::TokenType::OctalNumber) {
+  } else if (tt == aki::TokenType::OctalNumber) {
     int decimal = 0;
     for (size_t i = 0; i < data.size(); i++) {
       if (data[i] >= '0' && data[i] <= '7') {

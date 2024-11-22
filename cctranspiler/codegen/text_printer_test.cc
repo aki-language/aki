@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 
 namespace {
-using namespace insane;
+using namespace aki;
 
 TEST(TextPrinterTest, PushAndPopIndent) {
   base::StringU8 buffer;

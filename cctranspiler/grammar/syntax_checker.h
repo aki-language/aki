@@ -1,15 +1,15 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 #pragma once
 
-namespace insane {
+namespace aki {
 
-class Transpiler;
+class CCTranspiler;
 
 class SyntaxChecker {
  public:
-  explicit SyntaxChecker(Transpiler& t) : transpiler_(t) {}
+  explicit SyntaxChecker(CCTranspiler& t) : transpiler_(t) {}
 
  private:
-  Transpiler& transpiler_;
+  CCTranspiler& transpiler_;
 };
 }  // namespace insane
