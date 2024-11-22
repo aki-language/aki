@@ -31,4 +31,4 @@ class Lexer {
  private:
   base::Vector<Token> tokens_;
 };
-}  // namespace insane
+}  // namespace aki

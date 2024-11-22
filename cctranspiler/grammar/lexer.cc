@@ -776,4 +776,4 @@ bool Lexer::LexNumber(const base::StringRefU8 text, mem_size& index) {
   tokens_.emplace_back(TokenType::Number, make_ref(start, index));
   return true;
 }
-}  // namespace insane
+}  // namespace aki

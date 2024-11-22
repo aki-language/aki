@@ -110,4 +110,4 @@ inline bool IsCoreNumericType(const KeywordType type) noexcept {
       return false;
   }
 }
-}  // namespace insane
+}  // namespace aki

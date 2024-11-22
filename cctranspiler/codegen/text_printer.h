@@ -55,4 +55,4 @@ class TextPrinter {
   u32 current_intendation_level_;
   base::StringU8& buffer_;
 };
-}  // namespace insane
+}  // namespace aki

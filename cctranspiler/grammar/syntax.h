@@ -385,4 +385,4 @@ struct ParsedComplexDecl {
   BASE_NOCOPY(ParsedComplexDecl);
 };
 AST_HANDLE(ParsedComplexDecl)
-}  // namespace insane
+}  // namespace aki

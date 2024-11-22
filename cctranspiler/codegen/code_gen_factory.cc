@@ -40,4 +40,4 @@ base::UniquePointer<CodeGen> CreateCodeGenerator() {
   }
 }
 
-}  // namespace insane
+}  // namespace aki

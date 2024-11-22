@@ -82,4 +82,4 @@ void TextPrinter::PrintStack(const base::StringRefU8& text,
 void TextPrinter::RawWrite(const base::StringRefU8 text) {
   buffer_.append(text.c_str(), text.length());
 }
-}  // namespace insane
+}  // namespace aki

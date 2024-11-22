@@ -12,4 +12,4 @@ class SyntaxChecker {
  private:
   CCTranspiler& transpiler_;
 };
-}  // namespace insane
+}  // namespace aki

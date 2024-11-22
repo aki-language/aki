@@ -95,4 +95,4 @@ KeywordType MatchKeyword(const base::StringRefU8 ref) noexcept {
 static_assert(sizeof(kKeyWords) / sizeof(const char8_t*) ==
                   static_cast<size_t>(KeywordType::COUNT),
               "Keyword mapping mismatch");
-}  // namespace insane
+}  // namespace aki

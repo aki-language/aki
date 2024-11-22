@@ -8,4 +8,4 @@
 namespace aki {
 // Create a code emitter from a given backend
 base::UniquePointer<CodeGen> CreateCodeGenerator();
-}  // namespace insane
+}  // namespace aki

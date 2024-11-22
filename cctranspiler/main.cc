@@ -56,7 +56,7 @@ void SetBaseHandlers() {
          const char* msg) {
         if (mute_log) return;
         if (!verbose_logging && (log_level == base::LogLevel::kDebug ||
-                                   log_level == base::LogLevel::kTrace))
+                                 log_level == base::LogLevel::kTrace))
           return;
 
         std::printf("[%s]: %s\n", channel_name, msg);
@@ -120,8 +120,7 @@ bool HandleCommandLineOptions(base::CommandLine& command_line) {
   return true;
 }
 
-bool HandleEvalMode(base::CommandLine& command_line,
-                    aki::CCTranspiler& app) {
+bool HandleEvalMode(base::CommandLine& command_line, aki::CCTranspiler& app) {
   if (!eval_mode) return true;
 
   const auto idx = command_line.FindSwitchIndex(u8"eval");
@@ -135,9 +134,9 @@ bool HandleEvalMode(base::CommandLine& command_line,
   mute_log = true;
 
   const base::StringRefU8 text = command_line[idx];
-  auto eval_code = text.substr(7, text.length() - 1); // this is a bit cursed
+  auto eval_code = text.substr(7, text.length() - 1);  // this is a bit cursed
 
-  app.ParseText(eval_code, true);
+  app.EvaluateAkiCode(eval_code);
   return false;
 }
 
@@ -161,8 +160,10 @@ int main(int argc, char** argv) {
 
   SetKnobsFromCommandLine(command_line);
 
+  base::Path output_dir = ".";
+
   // keep large object on the heap
-  auto app{base::MakeUnique<aki::CCTranspiler>()};
+  auto app{base::MakeUnique<aki::CCTranspiler>(&output_dir)};
 
   if (!HandleEvalMode(command_line, *app)) {
     return 0;
@@ -180,6 +181,6 @@ int main(int argc, char** argv) {
     input_source_paths.push_back(command_line[i]);
   }
 
-  app->ProcessSourceFiles(input_source_paths);
+  app->ProcessSourceFilesBatch(input_source_paths);
   return 0;
 }

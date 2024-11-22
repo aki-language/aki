@@ -129,4 +129,4 @@ class Parser {
   // for now
   aki::TranslationUnit objects_;
 };
-}  // namespace insane
+}  // namespace aki

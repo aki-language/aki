@@ -78,4 +78,4 @@ const char* TokenTypeToName(TokenType type) noexcept {
 static_assert(sizeof(kTokenTypeToNames) / sizeof(const char*) ==
                   static_cast<size_t>(TokenType::COUNT),
               "Mapping mismatch");
-}  // namespace insane
+}  // namespace aki

@@ -351,7 +351,7 @@ void CCodeGen::EmitScope(const TranslationUnit::Scope& scope,
   }
 }
 
-void CCodeGen::GenerateCode(TranslationUnit& unit) {
+CodeGen::Result CCodeGen::GenerateCode(TranslationUnit& unit) {
   translation_unit_ = &unit;
 
   if (feature_flags::EmitAutoGenHeader) {
@@ -370,5 +370,8 @@ void CCodeGen::GenerateCode(TranslationUnit& unit) {
   if (!entry_symbol_.empty()) {
     CreateEntrypoint();
   }
+
+  // TBD: we should probably emit a footer here and shit
+  return CodeGen::Result::Success;
 }
-}  // namespace insane
+}  // namespace aki

@@ -1,5 +1,3 @@
-// Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
-
 #include "transpiler.h"
 
 #include <base/command_line.h>
@@ -8,13 +6,13 @@
 #include <base/logging.h>
 #include <base/text/code_point_validation.h>
 
+#include "base/memory/unique_pointer.h"
 #include "base/strings/string_ref.h"
+#include "codegen/code_gen.h"
 #include "codegen/code_gen_factory.h"
 #include "grammar/lexer.h"
 #include "grammar/parser.h"
 
-// NOTE(Vince): major hack, placed here for now to disable compilation of TBB
-// without exceptions properly.
 namespace tbb::detail::r1 {
 void do_throw_noexcept(void (*throw_exception)()) {}
 }  // namespace tbb::detail::r1
@@ -24,71 +22,124 @@ constexpr char kTag[] = "aki-transpiler";
 }  // namespace
 
 namespace aki {
-std::unique_ptr<byte[]> LoadFile(const base::Path& file_path) {
-  i64 size = 0;
-  auto bytes = base::LoadFile(file_path, &size);
-  if (size == 0) {
+static base::UniquePointer<byte[]> LoadAndValidateFile(
+    const base::Path& file_path, i64* size) {
+  if (!size) return nullptr;
+
+  auto bytes = base::ReadFile(file_path, size);
+  if (*size == 0) {
     BASE_LOG_ERROR("Failed to load file: {}", file_path.ToAsciiString());
     return nullptr;
   }
-  // make sure we only allow files with supported character types.
-  // this should be really fast with ICU
-  const char8_t* data = reinterpret_cast<const char8_t*>(bytes.get());
-  if (!base::DoIsStringUTF8(data, size)) {
+
+  const char8_t* data = reinterpret_cast<const char8_t*>(
+      bytes.Get_UseOnlyIfYouKnowWhatYouareDoing());
+  if (!base::DoIsStringUTF8(data, *size)) {
     BASE_LOG_ERROR("File is not UTF-8 encoded: {}", file_path.ToAsciiString());
     return nullptr;
   }
+
   return bytes;
 }
 
-CCTranspiler::CCTranspiler() {}
-
-void CCTranspiler::ProcessSourceFiles(
-    const file_list& input_file_canidates) {
-  base::Vector<std::unique_ptr<byte[]>> file_contents;
-
-  // IO is blocking regardless for now since we have to upload to common vector,
-  // and i wanna keep that as a queue of sorts?
-  for (const base::Path& file_path : input_file_canidates) {
-    auto bytes = LoadFile(file_path);
-    if (!bytes) continue;
-    loaded_files_.push_back(file_path);
-    file_contents.emplace_back(base::move(bytes));
-  }
-
-  // NOTE(Vince): We parse each file individually, and then we can do a second
-  // pass.
-  tbb::parallel_for((i64)0, static_cast<i64>(file_contents.size()), [&](i64 i) {
-    const char8_t* data =
-        reinterpret_cast<const char8_t*>(file_contents[i].get());
-    ParseText(data);
-  });
+static base::Path BuildOutputPath(const base::Path& out,
+                                  const base::Path& og_aki_file_path) {
+  auto fname = og_aki_file_path.BaseName().path();
+  fname.remove_suffix(4);  // Remove ".aki"
+  return out / base::Path(u8"aki_" + fname + u8".c");
 }
 
-void CCTranspiler::ParseText(const base::StringRefU8 text,
-                                 const bool is_eval_mode) {
-  // step 1: lexer is allowed to live on stack, only stores a vector.
-  // this splits the text into tokens, without any syntax comprehension.
+CCTranspiler::CCTranspiler(const base::Path* optional_out_path)
+    : output_dir_(optional_out_path) {}
+
+void CCTranspiler::ProcessSourceFilesBatch(
+    const file_list& input_file_candidates) {
+  struct FileData {
+    base::Path path;
+    base::UniquePointer<byte[]> content;
+    i64 size;
+  };
+
+  std::vector<FileData> valid_files;
+  valid_files.reserve(input_file_candidates.size());
+
+  // Load files in parallel
+  tbb::parallel_for_each(
+      input_file_candidates.begin(), input_file_candidates.end(),
+      [&](const base::Path& file_path) {
+        i64 size = 0;
+        auto content = LoadAndValidateFile(file_path, &size);
+        if (content) {
+          std::lock_guard<std::mutex> lock(files_mutex_);
+          valid_files.push_back({file_path, std::move(content), size});
+        }
+      });
+
+  // Process files in parallel
+  tbb::parallel_for_each(
+      valid_files.begin(), valid_files.end(), [&](const FileData& file_data) {
+        const char8_t* data = reinterpret_cast<const char8_t*>(
+            file_data.content.Get_UseOnlyIfYouKnowWhatYouareDoing());
+        const base::Path& file_path = file_data.path;
+
+        ProcessAndStageAkiCode(file_path,
+                               base::StringRefU8(data, file_data.size));
+      });
+}
+
+void CCTranspiler::ProcessAndStageAkiCode(const base::Path& original_file,
+                                          const base::StringRefU8 text) {
   aki::Lexer lexer;
   lexer.Parse(text);
 
-  // step 2: parse the tokens into an AST.
   aki::Parser parser(base::move(lexer.tokens()));
   parser.ParseTokens();
 
-  // for now, we just generate code individually for each unit.
-  // we can do a second pass later to optimize this.
   auto gen = CreateCodeGenerator();
-  gen->GenerateCode(parser.translation_unit());
-
-  const base::StringRefU8 code = gen->GetTextBuffer();
-
-  // HACK(Vince): we should probably have a better way to handle this.
-  if (is_eval_mode) {
-    std::puts((const char*)code.data());
-  } else {
-    BASE_LOGI(kTag, "Generated source file BELOW === \n{}",
-              (const char*)code.c_str());
+  if (!gen) {
+    BASE_LOGE(kTag, "Failed to find a code generator");
+    return;
   }
+
+  const auto result = gen->GenerateCode(parser.translation_unit());
+  if (result != CodeGen::Result::Success) {
+    BASE_LOGE(kTag, "Failed to generate code: {}", static_cast<int>(result));
+    return;
+  }
+
+  // assemble a new output path by appending _aki to the original file name and
+  // placing it in the output directory
+  const auto new_path = BuildOutputPath(*output_dir_, original_file);
+
+  // This is our build artifact
+  const base::StringRefU8 code = gen->GetTextBuffer();
+  file_writer_.EnqueueWrite(new_path, code);
+  BASE_LOGI(kTag, "Enqueued file for writing: {}",
+            output_dir_->ToAsciiString());
 }
-}  // namespace insane
+
+void CCTranspiler::EvaluateAkiCode(const base::StringRefU8 text) {
+  aki::Lexer lexer;
+  lexer.Parse(text);
+
+  aki::Parser parser(base::move(lexer.tokens()));
+  parser.ParseTokens();
+
+  auto gen = CreateCodeGenerator();
+  if (!gen) {
+    BASE_LOGE(kTag, "Failed to find a code generator");
+    return;
+  }
+
+  const auto result = gen->GenerateCode(parser.translation_unit());
+  if (result != CodeGen::Result::Success) {
+    BASE_LOGE(kTag, "Failed to generate code: {}", static_cast<int>(result));
+    return;
+  }
+
+  // This is our build artifact
+  const base::StringRefU8 code = gen->GetTextBuffer();
+  std::puts(reinterpret_cast<const char*>(code.data()));
+}
+
+}  // namespace aki

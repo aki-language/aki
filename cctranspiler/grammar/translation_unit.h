@@ -4,8 +4,8 @@
 #include <base/containers/vector.h>
 #include <base/memory/unique_pointer.h>
 
+#include "../utils/fifo_stack.h"
 #include "base/compiler.h"
-#include "fifo_stack.h"
 #include "object_pool.h"
 #include "syntax.h"
 
@@ -157,4 +157,4 @@ struct TranslationUnit {
 };
 
 using TU = TranslationUnit;
-}  // namespace insane
+}  // namespace aki

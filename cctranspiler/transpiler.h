@@ -7,23 +7,35 @@
 #include <tbb/task_scheduler_observer.h>
 #include <tbb/tbb.h>
 
+#include <mutex>
+
+#include "utils/file_writer.h"
+
 namespace aki {
 
 class CCTranspiler {
  public:
-  CCTranspiler();
+  CCTranspiler(const base::Path* optional_out_path);
 
   using file_list = base::Vector<base::Path>;
 
   // work on batches of files at the same time
-  void ProcessSourceFiles(const file_list& input_file_canidates);
+  void ProcessSourceFilesBatch(const file_list& input_file_canidates);
 
-  // Parse a selection of text
-  void ParseText(const base::StringRefU8 text, const bool is_eval_mode = false);
+  void EvaluateAkiCode(const base::StringRefU8 code);
+
+ private:
+  // Parse some text that might contain aki code
+  void ProcessAndStageAkiCode(const base::Path& original_file,
+                              const base::StringRefU8 text);
 
  private:
   file_list loaded_files_;
+  FileWriter file_writer_;
+  const base::Path* output_dir_;
+  // files_mutex_
+  std::mutex files_mutex_;
 
   // oneapi::tbb::task_scheduler observer_;
 };
-}  // namespace insane
+}  // namespace aki

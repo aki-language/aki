@@ -16,7 +16,7 @@ class CCodeGen final : public CodeGen {
   CCodeGen();
 
   // Inherited via CodeGen
-  void GenerateCode(TranslationUnit&) override;
+  CodeGen::Result GenerateCode(TranslationUnit&) override;
   const base::StringRefU8 GetTextBuffer() const override { return buffer_; }
 
   void EmitScope(const TranslationUnit::Scope&, const TranslationUnit&);
@@ -42,4 +42,4 @@ class CCodeGen final : public CodeGen {
   TranslationUnit* translation_unit_{nullptr};
 };
 
-}  // namespace insane
+}  // namespace aki

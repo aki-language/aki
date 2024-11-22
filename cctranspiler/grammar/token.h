@@ -108,4 +108,4 @@ struct Token {
 
   inline const char* StringifyType() const { return TokenTypeToName(type); }
 };
-}  // namespace insane
+}  // namespace aki

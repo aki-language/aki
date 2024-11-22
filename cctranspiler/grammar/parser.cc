@@ -857,4 +857,4 @@ ParseResult<ParsedTypeRef> Parser::ParseType() {
 
   return ParseResult(new_type.handle);
 }
-}  // namespace insane
+}  // namespace aki

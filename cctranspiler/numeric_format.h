@@ -67,4 +67,4 @@ inline base::StringU8 ConvertNumericRepresentation(
   // Error: Unknown token type
   return u8"";
 }
-}  // namespace insane
+}  // namespace aki
