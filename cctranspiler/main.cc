@@ -15,73 +15,54 @@
 #include "knobs.h"
 #include "transpiler.h"
 
-#if defined(OS_WIN)
+#ifdef OS_WIN
 #include <Windows.h>
 #endif
 
 namespace {
-constexpr char kSaneLogo[] = "akitrans v0.1.0 (c) 2023 Vincent Hengel";
 
-constexpr char kUseageString[] = "Usage: akitrans [options] <file>\n";
-
-constexpr char kHelpString[] =
-    R"(Flags:
+// Constants
+constexpr char kSaneLogo[] = "akitrans v0.0.1 (c) 2024 Vincent Hengel";
+constexpr char kUsageString[] = "Usage: akitrans [options] <file>\n";
+constexpr char kHelpString[] = R"(Flags:
 
 Options:
   -h, --help:       Print this help message
   -o, --output:     Specify the output directory
   -v, --verbose:    Print verbose output
+  -e, --eval:       Evaluate the given expression
 
 Arguments:
    FILES...         The files to compile)";
 
+// Global state
+bool mute_log = false;
+bool verbose_logging = false;
+bool eval_mode = false;
+feature_flags::KnobEntry g_options[feature_flags::kKnobCount];
+
+#ifdef OS_WIN
 void ConfigureConsoleMode() {
-#if defined(OS_WIN)
   SetConsoleOutputCP(CP_UTF8);
-  // Set the input code page to UTF-8
   SetConsoleCP(CP_UTF8);
+}
+#else
+void ConfigureConsoleMode() {}
 #endif
-}
 
-bool wants_trace_and_debug = false;
-feature_flags::KnobEntry options[feature_flags::kKnobCount];
-
-void SetKnobsFromCommandLine(base::CommandLine& command_line) {
-  for (mem_size i = 0; i < feature_flags::kKnobCount; ++i) {
-    const base::StringRefU8 knob_name((const char8_t*)options[i].name);
-    const auto idx = command_line.FindSwitchIndex(knob_name);
-    if (idx != base::CommandLine::kNotFoundIndex) {
-      base::BasicKnob* knob_obj = options[i].knob_obj;
-      const auto& value = command_line.ExtractSwitchValue(command_line.at(idx));
-      if (value == u8"true" || value == u8"1") {
-        reinterpret_cast<base::Knob<bool>*>(knob_obj)->set_value(true);
-        *reinterpret_cast<bool*>(&knob_obj) = true;
-      } else if (value == u8"false" || value == u8"0") {
-        reinterpret_cast<base::Knob<bool>*>(knob_obj)->set_value(false);
-      }
-    }
-  }
-}
-
-}  // namespace
-
-int main(int argc, char** argv) {
-  ConfigureConsoleMode();
-
-  // Handle log messages.
+void SetBaseHandlers() {
   base::SetLogHandler(
       [](void*, const char* channel_name, base::LogLevel log_level,
          const char* msg) {
-        // drop log content we don't desire
-        if (!wants_trace_and_debug && (log_level == base::LogLevel::kDebug ||
-                                       log_level == base::LogLevel::kTrace))
+        if (mute_log) return;
+        if (!verbose_logging && (log_level == base::LogLevel::kDebug ||
+                                   log_level == base::LogLevel::kTrace))
           return;
 
         std::printf("[%s]: %s\n", channel_name, msg);
       },
       nullptr);
 
-  // Similar to assert - Handles bugchecks, terminations etc.
   base::SetCheckHandler([](const char* message, const char* file_name,
                            const char* function, const char* msg) {
     auto location = fmt::format(fmt::runtime(message), file_name, function);
@@ -90,59 +71,105 @@ int main(int argc, char** argv) {
     std::fflush(stdout);
     std::terminate();
   });
+}
 
-  // Bind the known global options (Knobs) so we can populate them via cmdl
-  // below.
-  feature_flags::InitializeAllKnobsAndRegister(options);
+void SetKnobsFromCommandLine(base::CommandLine& command_line) {
+  for (mem_size i = 0; i < feature_flags::kKnobCount; ++i) {
+    const base::StringRefU8 knob_name((const char8_t*)g_options[i].name);
+    const auto idx = command_line.FindSwitchIndex(knob_name);
 
-#if defined(OS_WIN)
-  base::CommandLine
-      command_line;  // windows doesnt need the params, we fetch at runtime.
-#elif defined(OS_POSIX)
-  base::CommandLine command_line(argc, argv);
-#endif
+    if (idx != base::CommandLine::kNotFoundIndex) {
+      base::BasicKnob* knob_obj = g_options[i].knob_obj;
+      const auto& value = command_line.ExtractSwitchValue(command_line.at(idx));
+
+      auto* bool_knob = reinterpret_cast<base::Knob<bool>*>(knob_obj);
+      if (value == u8"true" || value == u8"1") {
+        bool_knob->set_value(true);
+        *reinterpret_cast<bool*>(&knob_obj) = true;
+      } else if (value == u8"false" || value == u8"0") {
+        bool_knob->set_value(false);
+      }
+    }
+  }
+}
+
+bool HandleCommandLineOptions(base::CommandLine& command_line) {
   if (command_line.parameter_count() < 2) {
-    std::puts(kUseageString);
-    return 0;
+    std::puts(kUsageString);
+    return false;
   }
 
-  if (!command_line.FindSwitch(u8"-nologo")) std::puts(&kSaneLogo[1]);
+  eval_mode = command_line.FindSwitchWithAlias(u8"--eval", u8"-e");
+  verbose_logging = command_line.FindSwitchWithAlias(u8"--verbose", u8"-v");
 
-  if (command_line.FindSwitch(u8"-h") || command_line.FindSwitch(u8"--help")) {
+  if (!command_line.FindSwitch(u8"-nologo") && !eval_mode) {
+    std::puts(kSaneLogo);
+  }
+
+  if (command_line.FindSwitchWithAlias(u8"--help", u8"-h")) {
     std::puts(kHelpString);
-    return 0;
+    return false;
   }
 
-  if (command_line.FindSwitch(u8"-v") ||
-      command_line.FindSwitch(u8"--verbose")) {
-    wants_trace_and_debug = true;
-  }
-
-  bool has_output_dir = false;
   if (command_line.FindSwitch(u8"-o") ||
       command_line.FindSwitch(u8"--output")) {
     BASE_LOG_ERROR("Output directory not yet supported");
+    return false;
+  }
 
-    has_output_dir = true;
+  return true;
+}
+
+bool HandleEvalMode(base::CommandLine& command_line,
+                    insane::InsaneTranspiler& app) {
+  if (!eval_mode) return true;
+
+  const auto idx = command_line.FindSwitchIndex(u8"eval");
+  if (idx == base::CommandLine::kNotFoundIndex) {
+    BASE_LOG_ERROR("No expression provided for eval mode");
+    return false;
+  }
+
+  // shut up the logs and header generation
+  feature_flags::EmitAutoGenHeader.set_value(false);
+  mute_log = true;
+
+  const base::StringRefU8 text = command_line[idx];
+  auto eval_code = text.substr(7, text.length() - 1); // this is a bit cursed
+
+  app.ParseText(eval_code, true);
+  return false;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  ConfigureConsoleMode();
+  SetBaseHandlers();
+
+  feature_flags::InitializeAllKnobsAndRegister(g_options);
+
+#ifdef OS_WIN
+  base::CommandLine command_line;
+#else
+  base::CommandLine command_line(argc, argv);
+#endif
+
+  if (!HandleCommandLineOptions(command_line)) {
     return 0;
   }
 
   SetKnobsFromCommandLine(command_line);
+  auto app = base::MakeUnique<insane::InsaneTranspiler>();
 
-  mem_size positional_index = 1;
-  for (auto i = 1; i < command_line.parameter_count(); i++) {
-    if (command_line[i].data()[0] == u8'-' ||
-        (i + 1 < command_line.parameter_count() &&
-         command_line[i + 1].data()[0] == u8'-')) {
-      positional_index++;
-    }
+  if (!HandleEvalMode(command_line, *app)) {
+    return 0;
   }
 
-  // now just follows a loose list of files, seperated by spaces.
+  const auto positional_index = command_line.FindPositionalArgumentsIndex();
   insane::InsaneTranspiler::file_list input_source_paths;
+
   for (mem_size i = positional_index; i < command_line.parameter_count(); i++) {
-    // const base::Path u8path(base::)
-    // fmt::print("LEO command: ", command_line[i]);
     if (!base::PathExists(command_line[i])) {
       BASE_LOG_ERROR("File does not exist: {}",
                      (const char*)command_line[i].data());
@@ -151,8 +178,6 @@ int main(int argc, char** argv) {
     input_source_paths.push_back(command_line[i]);
   }
 
-  // keep stack free
-  auto app{base::MakeUnique<insane::InsaneTranspiler>()};
   app->ProcessSourceFiles(input_source_paths);
   return 0;
 }

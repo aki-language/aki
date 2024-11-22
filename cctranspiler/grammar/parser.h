@@ -49,7 +49,9 @@ struct ParseResult {
   handle_type maybe_handle;
 
   // empty constructor
-  ParseResult() : status(ParseError::Unknown), maybe_handle((handle_type)TranslationUnit::invalid_handle) {}
+  ParseResult()
+      : status(ParseError::Unknown),
+        maybe_handle((handle_type)TranslationUnit::invalid_handle) {}
 
   ParseResult(const ParseError status, handle_type maybe_handle = (handle_type)
                                            TranslationUnit::invalid_handle)
@@ -61,7 +63,8 @@ struct ParseResult {
   operator bool() const { return status == ParseError::Success; }
 
   // copy constructor (we allow copying of parse results for now, but we might)
-  ParseResult(const ParseResult& other) : status(other.status), maybe_handle(other.maybe_handle) {}
+  ParseResult(const ParseResult& other)
+      : status(other.status), maybe_handle(other.maybe_handle) {}
 };
 
 // NOTE(Vince): The parser is responsible for taking a stream of tokens and

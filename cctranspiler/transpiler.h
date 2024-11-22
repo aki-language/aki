@@ -15,10 +15,11 @@ class InsaneTranspiler {
 
   using file_list = base::Vector<base::Path>;
 
+  // work on batches of files at the same time
   void ProcessSourceFiles(const file_list& input_file_canidates);
 
- private:
-  void ParseFile(const base::StringRefU8 text);
+  // Parse a selection of text
+  void ParseText(const base::StringRefU8 text, const bool is_eval_mode = false);
 
  private:
   file_list loaded_files_;

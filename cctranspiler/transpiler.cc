@@ -8,6 +8,7 @@
 #include <base/logging.h>
 #include <base/text/code_point_validation.h>
 
+#include "base/strings/string_ref.h"
 #include "codegen/code_gen_factory.h"
 #include "grammar/lexer.h"
 #include "grammar/parser.h"
@@ -18,7 +19,9 @@ namespace tbb::detail::r1 {
 void do_throw_noexcept(void (*throw_exception)()) {}
 }  // namespace tbb::detail::r1
 
-namespace {}  // namespace
+namespace {
+constexpr char kTag[] = "aki-transpiler";
+}  // namespace
 
 namespace insane {
 std::unique_ptr<byte[]> LoadFile(const base::Path& file_path) {
@@ -58,11 +61,12 @@ void InsaneTranspiler::ProcessSourceFiles(
   tbb::parallel_for((i64)0, static_cast<i64>(file_contents.size()), [&](i64 i) {
     const char8_t* data =
         reinterpret_cast<const char8_t*>(file_contents[i].get());
-    ParseFile(data);
+    ParseText(data);
   });
 }
 
-void InsaneTranspiler::ParseFile(const base::StringRefU8 text) {
+void InsaneTranspiler::ParseText(const base::StringRefU8 text,
+                                 const bool is_eval_mode) {
   // step 1: lexer is allowed to live on stack, only stores a vector.
   // this splits the text into tokens, without any syntax comprehension.
   insane::Lexer lexer;
@@ -76,5 +80,15 @@ void InsaneTranspiler::ParseFile(const base::StringRefU8 text) {
   // we can do a second pass later to optimize this.
   auto gen = CreateCodeGenerator();
   gen->GenerateCode(parser.translation_unit());
+
+  const base::StringRefU8 code = gen->GetTextBuffer();
+
+  // HACK(Vince): we should probably have a better way to handle this.
+  if (is_eval_mode) {
+    std::puts((const char*)code.data());
+  } else {
+    BASE_LOGI(kTag, "Generated source file BELOW === \n{}",
+              (const char*)code.c_str());
+  }
 }
 }  // namespace insane

@@ -6,10 +6,10 @@
 #include <variant>
 #include <vector>
 
+#include "base/containers/vector.h"
 #include "base/logging.h"
 #include "base/memory/move.h"
 #include "base/optional.h"
-#include "base/containers/vector.h"
 #include "token.h"
 
 namespace insane {

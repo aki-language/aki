@@ -1,5 +1,9 @@
 #pragma once
 
+#include <base/strings/xstring.h>
+
+#include "base/strings/string_ref.h"
+
 namespace insane {
 struct TranslationUnit;
 
@@ -12,5 +16,7 @@ class CodeGen {
   // virtual void Emit() = 0;
 
   virtual void GenerateCode(TranslationUnit&) = 0;
+
+  virtual const base::StringRefU8 GetTextBuffer() const = 0;
 };
 }  // namespace insane

@@ -16,7 +16,9 @@
 
 namespace feature_flags {
 base::Knob<bool> MangleTranslatedSymbols{false};
-}
+base::Knob<bool> EmitCompilerSpecificTypes{false};
+base::Knob<bool> EmitAutoGenHeader{true};
+}  // namespace feature_flags
 
 // version::kU8LanguageEdition
 
@@ -162,12 +164,12 @@ void CCodeGen::EmitVariable(const TranslationUnit& unit,
   printer_.Print(
       u8"$is_hidden$$is_const$$type_decl$$is_pointed$$variable_name$",
       TS{u8"is_hidden",
-         decl.visibility == Visibility::Private ? u8"static " : u8""},
-      TS{u8"is_const", decl.is_const ? u8"const " : u8""},
+         decl.visibility == Visibility::Private ? u8"static " : u8" "},
+      TS{u8"is_const", decl.is_const ? u8"const " : u8" "},
       TS{u8"is_pointed",
          operation
-             ? (operation->flags & ParsedOp::Flags::IsPointer ? u8" *" : u8"")
-             : u8""},
+             ? (operation->flags & ParsedOp::Flags::IsPointer ? u8" *" : u8" ")
+             : u8" "},
       TS{u8"type_decl", c_type}, TS{u8"variable_name", variable_name});
 
   if (assignment && operation) {
@@ -352,9 +354,11 @@ void CCodeGen::EmitScope(const TranslationUnit::Scope& scope,
 void CCodeGen::GenerateCode(TranslationUnit& unit) {
   translation_unit_ = &unit;
 
-  printer_.Print(kGeneratedFileHeader,
-                 TS{u8"transpiler_version", version::kTranspilerVersion},
-                 TS{u8"language_edition", version::kU8LanguageEdition});
+  if (feature_flags::EmitAutoGenHeader) {
+    printer_.Print(kGeneratedFileHeader,
+                   TS{u8"transpiler_version", version::kTranspilerVersion},
+                   TS{u8"language_edition", version::kU8LanguageEdition});
+  }
 
   BASE_LOGI(kTag, "Generating global TU.");
   EmitScope(*unit.global_scope(),
@@ -366,7 +370,5 @@ void CCodeGen::GenerateCode(TranslationUnit& unit) {
   if (!entry_symbol_.empty()) {
     CreateEntrypoint();
   }
-  BASE_LOGI(kTag, "Generated source file BELOW === \n{}",
-            (const char*)this->buffer_.c_str());
 }
 }  // namespace insane

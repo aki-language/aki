@@ -16,6 +16,42 @@
 #include "projects/nemisis3/external/capstone/include/capstone/arm.h"
 
 namespace insane {
+static void Utf8ToLowercase(base::StringU8* str) {
+  if (str->empty()) {
+    return;
+  }
+
+  char8_t* data = &(*str)[0];
+  size_t length = str->length();
+  size_t i = 0;
+
+  while (i < length) {
+    unsigned char c = static_cast<unsigned char>(data[i]);
+    if (c < 128) {
+      // ASCII character
+      data[i] = tolower(c);
+      i++;
+    } else if ((c & 0xE0) == 0xC0 && i + 1 < length) {
+      // 2-byte UTF-8 sequence
+      if (c == 0xC3 && static_cast<unsigned char>(data[i + 1]) >= 0x80 &&
+          static_cast<unsigned char>(data[i + 1]) <= 0x9E) {
+        // Latin-1 Supplement uppercase
+        data[i + 1] += 0x20;
+      }
+      i += 2;
+    } else if ((c & 0xF0) == 0xE0 && i + 2 < length) {
+      // 3-byte UTF-8 sequence
+      i += 3;
+    } else if ((c & 0xF8) == 0xF0 && i + 3 < length) {
+      // 4-byte UTF-8 sequence
+      i += 4;
+    } else {
+      // Invalid UTF-8 sequence, skip
+      i++;
+    }
+  }
+}
+
 constexpr char kTag[] = "langparser";
 
 // NOTE(Vince): this class exists on a per translation unit basis. therefore it
@@ -292,42 +328,6 @@ ParseResult<ParsedExpressionRef> Parser::ParseExpression(bool has_assignment,
 
   if (stack_size > 0) return ParseResult<ParsedExpressionRef>(expr.handle);
   return ParseResult<ParsedExpressionRef>(ParseError::InvalidExpression);
-}
-
-static void Utf8ToLowercase(base::StringU8* str) {
-  if (str->empty()) {
-    return;
-  }
-
-  char8_t* data = &(*str)[0];
-  size_t length = str->length();
-  size_t i = 0;
-
-  while (i < length) {
-    unsigned char c = static_cast<unsigned char>(data[i]);
-    if (c < 128) {
-      // ASCII character
-      data[i] = tolower(c);
-      i++;
-    } else if ((c & 0xE0) == 0xC0 && i + 1 < length) {
-      // 2-byte UTF-8 sequence
-      if (c == 0xC3 && static_cast<unsigned char>(data[i + 1]) >= 0x80 &&
-          static_cast<unsigned char>(data[i + 1]) <= 0x9E) {
-        // Latin-1 Supplement uppercase
-        data[i + 1] += 0x20;
-      }
-      i += 2;
-    } else if ((c & 0xF0) == 0xE0 && i + 2 < length) {
-      // 3-byte UTF-8 sequence
-      i += 3;
-    } else if ((c & 0xF8) == 0xF0 && i + 3 < length) {
-      // 4-byte UTF-8 sequence
-      i += 4;
-    } else {
-      // Invalid UTF-8 sequence, skip
-      i++;
-    }
-  }
 }
 
 ParseError Parser::ParseNamespace() {
@@ -702,13 +702,13 @@ ParseError Parser::ParseVariableDecleration(
     bool is_const /*let for const, or var for mutable*/) {
   // let/var nmame : aaa = b;
   const auto name_ref = ParseCharacterSequence();  // nmame
-  if (name_ref.empty())
-    return ParseError::InvalidName;
+  if (name_ref.empty()) return ParseError::InvalidName;
 
-  BASE_LOGI(kTag,"Parse attempt: {}", (char*)base::MakeStringCopy(name_ref).c_str());
+  BASE_LOGI(kTag, "Parse attempt: {}",
+            (char*)base::MakeStringCopy(name_ref).c_str());
 
   // type is provided.
-  if (CheckForToken(TokenType::Colon)) {          // :
+  if (CheckForToken(TokenType::Colon)) {  // :
     const bool is_array = CheckForToken(TokenType::LSquare);
     BASE_LOGI(kTag, "Array: {}", is_array ? "true" : "false");
 
@@ -719,15 +719,17 @@ ParseError Parser::ParseVariableDecleration(
       // [i32, ...] or [i32, 10] are allowed
       parsed_type = ParseType();
       if (parsed_type.status != ParseError::Success) return parsed_type.status;
-      if (!CheckForToken(TokenType::Comma)) return ParseError::UnexpectedEnding; // ,
-      bool is_unbounded = CheckForToken(TokenType::DotDotDot); // ...
-      BASE_LOGI(kTag, "Array is Unbounded: {}", is_unbounded ? "true" : "false");
-      if (is_unbounded) { // [i32, ...]
+      if (!CheckForToken(TokenType::Comma))
+        return ParseError::UnexpectedEnding;                    // ,
+      bool is_unbounded = CheckForToken(TokenType::DotDotDot);  // ...
+      BASE_LOGI(kTag, "Array is Unbounded: {}",
+                is_unbounded ? "true" : "false");
+      if (is_unbounded) {  // [i32, ...]
         if (!CheckForToken(TokenType::RSquare)) {
           BASE_LOGW(kTag, "Expected closing bracket for array decleration");
-          return ParseError::UnexpectedEnding;// WARNING CAUSES INFINITE LOOP
+          return ParseError::UnexpectedEnding;  // WARNING CAUSES INFINITE LOOP
         }
-      } else { // exact array size: [i32, 10]
+      } else {  // exact array size: [i32, 10]
         // TBD
       }
     }
@@ -743,14 +745,12 @@ ParseError Parser::ParseVariableDecleration(
     auto obj =
         expr_result.status == ParseError::Success
             ? objects_.all_variables.Create(
-                  name_ref,
-                  is_const,
-                Linkage::External,
-                Visibility::Private,
-                parsed_type.maybe_handle, expr_result.maybe_handle)
+                  name_ref, is_const, Linkage::External, Visibility::Private,
+                  parsed_type.maybe_handle, expr_result.maybe_handle)
             : objects_.all_variables.Create(
                   name_ref, is_const, Linkage::External, Visibility::Private,
-                  parsed_type.maybe_handle, (ParsedExpressionRef)TU::invalid_handle);
+                  parsed_type.maybe_handle,
+                  (ParsedExpressionRef)TU::invalid_handle);
 
     objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
     return ParseError::Success;
@@ -760,14 +760,16 @@ ParseError Parser::ParseVariableDecleration(
   else if (Peek().type == TokenType::Equal) {
     auto obj = objects_.all_variables.Create(
         name_ref, is_const, Linkage::External, Visibility::Private,
-        (ParsedTypeRef)TU::invalid_handle, (ParsedExpressionRef)TU::invalid_handle);
+        (ParsedTypeRef)TU::invalid_handle,
+        (ParsedExpressionRef)TU::invalid_handle);
 
     objects_.current_scope()->AddObject(TU::ObjectType::Variable, obj.handle);
-    BASE_LOGI(kTag,"Parsing auto type..");
+    BASE_LOGI(kTag, "Parsing auto type..");
 
     return ParseError::Success;
   } else {
-    BASE_LOGI(kTag,"Peek type: {} unknown.. owie.. ", static_cast<i32>(Peek().type));
+    BASE_LOGI(kTag, "Peek type: {} unknown.. owie.. ",
+              static_cast<i32>(Peek().type));
     return ParseError::InvalidTypeDecleration;
   }
 }

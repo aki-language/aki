@@ -17,6 +17,7 @@ class CCodeGen final : public CodeGen {
 
   // Inherited via CodeGen
   void GenerateCode(TranslationUnit&) override;
+  const base::StringRefU8 GetTextBuffer() const override { return buffer_; }
 
   void EmitScope(const TranslationUnit::Scope&, const TranslationUnit&);
 
@@ -26,7 +27,6 @@ class CCodeGen final : public CodeGen {
   void EmitImport(const ParsedImport&);
   void EmitVariable(const TranslationUnit&, const ParsedVariableDecl&,
                     const base::StringRefU8, const bool needs_mangeling = true);
-
   // functions
   void EmitFunctionBlock(const TranslationUnit&, const TranslationUnit::Scope&,
                          const ParsedFunctionDecl&, const base::StringRefU8);
@@ -36,7 +36,7 @@ class CCodeGen final : public CodeGen {
   void EmitEnum(const ParsedEnumDecl&, const base::StringRefU8);
 
  private:
-  base::StringU8 buffer_;
+  base::StringU8 buffer_;  // the printer will write to this buffer
   base::StringU8 entry_symbol_;
   TextPrinter printer_;
   TranslationUnit* translation_unit_{nullptr};
