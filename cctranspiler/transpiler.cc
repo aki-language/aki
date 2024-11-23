@@ -6,6 +6,7 @@
 #include <base/logging.h>
 #include <base/text/code_point_validation.h>
 
+#include "base/containers/vector.h"
 #include "base/memory/unique_pointer.h"
 #include "base/strings/string_ref.h"
 #include "codegen/code_gen.h"
@@ -45,12 +46,18 @@ static base::UniquePointer<byte[]> LoadAndValidateFile(
 static base::Path BuildOutputPath(const base::Path& out,
                                   const base::Path& og_aki_file_path) {
   auto fname = og_aki_file_path.BaseName().path();
-  fname.remove_suffix(4);  // Remove ".aki"
+  // find the extension and remove it
+  auto pos = fname.find_last_of('.');
+  if (pos == base::StringU8::npos) {
+    // assume its a .aki file
+    fname.remove_suffix(4);
+  } else {
+    fname.remove_suffix(fname.length() - pos);
+  }
   return out / base::Path(u8"aki_" + fname + u8".c");
 }
 
-CCTranspiler::CCTranspiler(const base::Path* optional_out_path)
-    : output_dir_(optional_out_path) {}
+CCTranspiler::CCTranspiler() {}
 
 void CCTranspiler::ProcessSourceFilesBatch(
     const file_list& input_file_candidates) {
@@ -60,18 +67,19 @@ void CCTranspiler::ProcessSourceFilesBatch(
     i64 size;
   };
 
-  std::vector<FileData> valid_files;
-  valid_files.reserve(input_file_candidates.size());
+  base::Vector<FileData> valid_files(input_file_candidates.size(),
+                                     base::VectorReservePolicy::kForPushback);
 
   // Load files in parallel
   tbb::parallel_for_each(
       input_file_candidates.begin(), input_file_candidates.end(),
       [&](const base::Path& file_path) {
+        std::printf("Processing file: %s\n", file_path.ToAsciiString().c_str());
         i64 size = 0;
         auto content = LoadAndValidateFile(file_path, &size);
         if (content) {
           std::lock_guard<std::mutex> lock(files_mutex_);
-          valid_files.push_back({file_path, std::move(content), size});
+          valid_files.push_back({file_path, base::move(content), size});
         }
       });
 
@@ -114,8 +122,7 @@ void CCTranspiler::ProcessAndStageAkiCode(const base::Path& original_file,
   // This is our build artifact
   const base::StringRefU8 code = gen->GetTextBuffer();
   file_writer_.EnqueueWrite(new_path, code);
-  BASE_LOGI(kTag, "Enqueued file for writing: {}",
-            output_dir_->ToAsciiString());
+  BASE_LOGI(kTag, "Enqueued file for writing: {}", new_path.ToAsciiString());
 }
 
 void CCTranspiler::EvaluateAkiCode(const base::StringRefU8 text) {

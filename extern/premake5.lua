@@ -18,3 +18,14 @@ project("tbb")
     "tbb/src/tbb/**.h",
     "tbb/src/tbb/**.cpp",
   })
+
+project("simdjson")
+  kind("StaticLib")
+  language("C++")
+  pubincludedirs({
+    "simdjson",
+  })
+  files({
+    "simdjson/simdjson.h",
+    "simdjson/simdjson.cpp",
+  })

@@ -11,8 +11,6 @@
 #include <vector>
 
 namespace aki {
-
-// https://source.chromium.org/chromium/chromium/src/+/main:third_party/protobuf/src/google/protobuf/io/printer.h;l=184?q=printer&ss=chromium%2Fchromium%2Fsrc
 class TextPrinter {
  public:
   TextPrinter(base::StringU8& buffer);

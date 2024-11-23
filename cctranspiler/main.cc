@@ -10,6 +10,7 @@
 
 #include "base/arch.h"
 #include "base/check.h"
+#include "base/filesystem/file.h"
 #include "base/knob.h"
 #include "base/strings/string_ref.h"
 #include "knobs.h"
@@ -19,6 +20,8 @@
 #include <Windows.h>
 #endif
 
+#include <simdjson.h>
+
 namespace {
 
 // Constants
@@ -27,13 +30,15 @@ constexpr char kUsageString[] = "Usage: akitrans [options] <file>\n";
 constexpr char kHelpString[] = R"(Flags:
 
 Options:
-  -h, --help:       Print this help message
-  -o, --output:     Specify the output directory
-  -v, --verbose:    Print verbose output
-  -e, --eval:       Evaluate the given expression
+  -h,  --help:       Print this help message
+  -o,  --output:     Specify the output directory
+  -v,  --verbose:    Print verbose output
+  -e,  --eval:       Evaluate the given expression
+  -ji, --json-input: Read input files from a JSON file
+  -nl, --nologo:     Suppress the logo
 
 Arguments:
-   FILES...         The files to compile)";
+   FILES...         The files to compile (or specify JSON file list with --json-input))";
 
 // Global state
 bool mute_log = false;
@@ -93,7 +98,82 @@ void SetKnobsFromCommandLine(base::CommandLine& command_line) {
   }
 }
 
-bool HandleCommandLineOptions(base::CommandLine& command_line) {
+/* The Json contains a list of file entries, each with a file path and a list of
+build commands.
+ * Example:
+{
+  "file": "example2.aki",
+  "commands": ["-t=cc"]
+}
+*/
+bool ReadJSONInput(const base::Path& json_path,
+                   aki::CCTranspiler::file_list& out) {
+  i64 size_read = 0;
+  base::UniquePointer<byte[]> bytes = base::ReadFile(json_path, &size_read);
+  if (!bytes) {
+    BASE_LOG_ERROR("Failed to read JSON file: {}", json_path.ToAsciiString());
+    return false;
+  }
+
+  simdjson::padded_string json(reinterpret_cast<const char*>(
+                                   bytes.Get_UseOnlyIfYouKnowWhatYouareDoing()),
+                               size_read);
+
+  simdjson::ondemand::document doc;
+  simdjson::ondemand::parser parser;
+  auto parse_result = parser.iterate(json).get(doc);
+  if (parse_result != simdjson::error_code::SUCCESS) {
+    BASE_LOG_ERROR("Failed to parse JSON: {}",
+                   simdjson::error_message(parse_result));
+    return false;
+  }
+
+  simdjson::ondemand::array array;
+  auto array_result = doc.get_array().get(array);
+  if (array_result != simdjson::error_code::SUCCESS) {
+    BASE_LOG_ERROR("Root must be an array: {}",
+                   simdjson::error_message(array_result));
+    return false;
+  }
+
+  for (auto file : array) {
+    base::Path path;
+    // aki::CCTranspiler::file_entry entry;
+
+    // Required path field
+    std::string_view path_view;
+    auto path_result = file["path"].get_string().get(path_view);
+    if (path_result != simdjson::error_code::SUCCESS) {
+      BASE_LOG_ERROR("File entry missing required 'path' field");
+      return false;
+    }
+    path = base::StringRefU8((const char8_t*)path_view.data(), path_view.length());
+#if 0
+    // Optional build commands
+    auto commands = file["build_commands"];
+    if (commands.error() == simdjson::error_code::SUCCESS) {
+      simdjson::ondemand::array cmd_array;
+      if (commands.get_array().get(cmd_array) ==
+          simdjson::error_code::SUCCESS) {
+        for (auto cmd : cmd_array) {
+          std::string_view cmd_view;
+          if (cmd.get_string().get(cmd_view) == simdjson::error_code::SUCCESS) {
+            entry.build_commands.push_back(std::string(cmd_view));
+          }
+        }
+      }
+    }
+#endif
+
+    out.push_back(std::move(path));
+  }
+
+  return true;
+}
+
+bool HandleCommandLineOptions(aki::CCTranspiler& app,
+                              aki::CCTranspiler::file_list& input_files,
+                              base::CommandLine& command_line) {
   if (command_line.parameter_count() < 2) {
     std::puts(kUsageString);
     return false;
@@ -102,13 +182,25 @@ bool HandleCommandLineOptions(base::CommandLine& command_line) {
   eval_mode = command_line.FindSwitchWithAlias(u8"--eval", u8"-e");
   verbose_logging = command_line.FindSwitchWithAlias(u8"--verbose", u8"-v");
 
-  if (!command_line.FindSwitch(u8"-nologo") && !eval_mode) {
+  if (!command_line.FindSwitchWithAlias(u8"--nologo", u8"-nl") && !eval_mode) {
     std::puts(kSaneLogo);
   }
 
   if (command_line.FindSwitchWithAlias(u8"--help", u8"-h")) {
     std::puts(kHelpString);
     return false;
+  }
+
+  const base::StringRefU8 json_path =
+      command_line.FindSwitchValuesWithAlias(u8"json-input", u8"ji");
+  if (!json_path.empty()) {
+    const base::Path p(json_path);
+    BASE_LOG_INFO("Ingesting filelist from a json: {}", p.ToAsciiString());
+    if (!ReadJSONInput(p, input_files)) {
+      BASE_LOG_ERROR("The json you provided was borked. How dare you!");
+      return false;
+    }
+    BASE_LOG_INFO("Ingested {} files", input_files.size());
   }
 
   if (command_line.FindSwitch(u8"-o") ||
@@ -120,7 +212,7 @@ bool HandleCommandLineOptions(base::CommandLine& command_line) {
   return true;
 }
 
-bool HandleEvalMode(base::CommandLine& command_line, aki::CCTranspiler& app) {
+bool HandleEvalMode(aki::CCTranspiler& app, base::CommandLine& command_line) {
   if (!eval_mode) return true;
 
   const auto idx = command_line.FindSwitchIndex(u8"eval");
@@ -154,23 +246,23 @@ int main(int argc, char** argv) {
   base::CommandLine command_line(argc, argv);
 #endif
 
-  if (!HandleCommandLineOptions(command_line)) {
+  // keep large object on the heap
+  auto app{base::MakeUnique<aki::CCTranspiler>()};
+
+  aki::CCTranspiler::file_list input_source_paths;
+  if (!HandleCommandLineOptions(*app, input_source_paths, command_line)) {
     return 0;
   }
 
-  SetKnobsFromCommandLine(command_line);
-
   base::Path output_dir = ".";
+  app->SetOutputDir(&output_dir);
 
-  // keep large object on the heap
-  auto app{base::MakeUnique<aki::CCTranspiler>(&output_dir)};
-
-  if (!HandleEvalMode(command_line, *app)) {
+  SetKnobsFromCommandLine(command_line);
+  if (!HandleEvalMode(*app, command_line)) {
     return 0;
   }
 
   const auto positional_index = command_line.FindPositionalArgumentsIndex();
-  aki::CCTranspiler::file_list input_source_paths;
 
   for (mem_size i = positional_index; i < command_line.parameter_count(); i++) {
     if (!base::PathExists(command_line[i])) {
@@ -181,6 +273,7 @@ int main(int argc, char** argv) {
     input_source_paths.push_back(command_line[i]);
   }
 
+  BASE_LOG_INFO("Generating...");
   app->ProcessSourceFilesBatch(input_source_paths);
   return 0;
 }

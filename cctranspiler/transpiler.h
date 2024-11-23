@@ -15,7 +15,7 @@ namespace aki {
 
 class CCTranspiler {
  public:
-  CCTranspiler(const base::Path* optional_out_path);
+  CCTranspiler();
 
   using file_list = base::Vector<base::Path>;
 
@@ -23,6 +23,8 @@ class CCTranspiler {
   void ProcessSourceFilesBatch(const file_list& input_file_canidates);
 
   void EvaluateAkiCode(const base::StringRefU8 code);
+
+  void SetOutputDir(base::Path* output_dir) { output_dir_ = output_dir; }
 
  private:
   // Parse some text that might contain aki code
@@ -32,7 +34,7 @@ class CCTranspiler {
  private:
   file_list loaded_files_;
   FileWriter file_writer_;
-  const base::Path* output_dir_;
+  base::Path* output_dir_{nullptr};
   // files_mutex_
   std::mutex files_mutex_;
 

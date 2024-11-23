@@ -11,6 +11,7 @@ local function build_transpiler()
       "fmtlib",
       "base",
       "tbb",
+      "simdjson"
     })
     blu.include_root()
     include_eq_components()
