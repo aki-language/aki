@@ -13,7 +13,6 @@
 #include "grammar/token.h"
 #include "keyword.h"
 #include "numeric_format.h"
-#include "projects/nemisis3/external/capstone/include/capstone/arm.h"
 
 namespace aki {
 static void Utf8ToLowercase(base::StringU8* str) {
