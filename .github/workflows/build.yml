@@ -2,22 +2,45 @@ name: C/C++ CI
 
 on:
   push:
-    branches: [ "devel" ]
+    branches: [ "devel", "main" ]
   pull_request:
     branches: [ "devel" ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+    - name: Check out equilibrium src
+      uses: actions/checkout@v4
+      with:
+        repository: Force67/equilibrium
+        ref: devel5 # latest development branch
+        submodules: 'recursive'
+        token: ${{ secrets.GH_TOKEN }}
+
+    - name: Check out aki
+      uses: actions/checkout@v4
+      with:
+        repository: aki-language/aki
+        ref: devel
+        submodules: 'recursive'
+        token: ${{ secrets.GH_TOKEN }}
+        path: "projects/aki"
+
+    - uses: cachix/install-nix-action@v27
+      with:
+        github_access_token: ${{ secrets.GH_TOKEN }}
+
+    - name: Warm nix cache
+      run: nix develop .#linux
+
+    - name: Generate Makefile
+      run: |
+        nix develop .#linux --command ./build/premake_linux.sh ci_release
+
+    - name: Build
+      run: |
+        cd out/gmake2
+        ls
+        nix develop .#linux --ignore-environment --command make config=release akitrans
