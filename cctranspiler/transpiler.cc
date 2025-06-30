@@ -54,7 +54,11 @@ static base::Path BuildOutputPath(const base::Path& out,
   } else {
     fname.remove_suffix(fname.length() - pos);
   }
-  return out / base::Path(u8"aki_" + fname + u8".c");
+  base::Path::BufferType c_file_name(BASE_PATH_LITERAL("aki_"));
+  c_file_name += fname;
+  c_file_name += BASE_PATH_LITERAL(".c");
+
+  return out / base::Path(c_file_name);
 }
 
 CCTranspiler::CCTranspiler() {}
