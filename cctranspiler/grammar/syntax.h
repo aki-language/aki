@@ -12,6 +12,9 @@
 #include "base/optional.h"
 #include "token.h"
 
+// NOTE(Vince): Keep the data types as simple as possible, with great granularity.
+// Reference other types with obj_handle references. This will ensure that our structs
+// have a greater chance to fit into the cpu cache lines.
 namespace aki {
 using obj_handle = u64;
 

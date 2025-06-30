@@ -14,7 +14,7 @@ TEST(Lexer, ParseNumber) {
   lex.Parse(u8"f32 floating_point = 1.2345;");
 
   auto& tokens = lex.tokens();
-  EXPECT_EQ(tokens.size(), 6);
+  EXPECT_EQ(tokens.size(), 5);
 #if 0
   EXPECT_EQ(tokens[0].type(), Token::Type::kIdentifier);
   EXPECT_EQ(tokens[0].text(), u8"f32");

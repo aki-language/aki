@@ -20,7 +20,7 @@ local function build_transpiler()
       "../",
       "../../docs",
     })
-    defines("FMT_HEADER_ONLY")
+    --defines("FMT_HEADER_ONLY")
 end
 
 project("akitrans")
