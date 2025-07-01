@@ -15,7 +15,7 @@ static void DumpTokens(const base::Vector<aki::Token>& tok)
 
 TEST(Lexer, TestSimpleTokens) {
   aki::Lexer lex;
-  lex.Parse(u8";:+++=");  // Tokens: ;, :, ++, +=
+  lex.Parse(u8";:+++=");
 
   base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 4);
@@ -34,23 +34,22 @@ TEST(Lexer, TestSimpleTokens) {
 }
 
 TEST(Lexer, ParseNumberDecl) {
-  // Existing test remains unchanged
   aki::Lexer lex;
   lex.Parse(u8"f32 floating_point = 1.2345;");
 
   base::Vector<aki::Token>& tokens = lex.tokens();
   EXPECT_EQ(tokens.size(), 5);
 
-  EXPECT_EQ(tokens[0].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[0].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[0].value == u8"f32");
 
-  EXPECT_EQ(tokens[1].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[1].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[1].value == u8"floating_point");
 
   EXPECT_EQ(tokens[2].type, TokenType::Equal);
   EXPECT_TRUE(tokens[2].value == u8"=");
 
-  EXPECT_EQ(tokens[3].type, TokenType::FloatingNumber);
+  EXPECT_EQ(tokens[3].type, TokenType::FloatNumber);
   EXPECT_TRUE(tokens[3].value == u8"1.2345");
 
   EXPECT_EQ(tokens[4].type, TokenType::Semicolon);
@@ -85,28 +84,28 @@ TEST(Lexer, NumberVariety) {
   ASSERT_EQ(tokens.size(), 9);
 
   // the lexer will strip the prefix in its internal repr
-  EXPECT_EQ(tokens[0].type, TokenType::Number);
+  EXPECT_EQ(tokens[0].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[0].value == u8"123");
 
-  EXPECT_EQ(tokens[1].type, TokenType::FloatingNumber);
+  EXPECT_EQ(tokens[1].type, TokenType::FloatNumber);
   EXPECT_TRUE(tokens[1].value == u8"123.456");
 
-  EXPECT_EQ(tokens[2].type, TokenType::HexNumber);
+  EXPECT_EQ(tokens[2].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[2].value == u8"12ab");
 
-  EXPECT_EQ(tokens[3].type, TokenType::BinaryNumber);
+  EXPECT_EQ(tokens[3].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[3].value == u8"1010");
 
-  EXPECT_EQ(tokens[4].type, TokenType::OctalNumber);
+  EXPECT_EQ(tokens[4].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[4].value == u8"77");
 
-  EXPECT_EQ(tokens[5].type, TokenType::Number);
+  EXPECT_EQ(tokens[5].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[5].value == u8"123");
 
   EXPECT_EQ(tokens[6].type, TokenType::CharacterSequence);
   EXPECT_TRUE(tokens[6].value == u8"u32");
 
-  EXPECT_EQ(tokens[7].type, TokenType::Number);
+  EXPECT_EQ(tokens[7].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[7].value == u8"456");
 
   EXPECT_EQ(tokens[8].type, TokenType::CharacterSequence);
@@ -151,12 +150,12 @@ TEST(Lexer, Comments) {
   base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 3);  // Including Eol
 
-  EXPECT_EQ(tokens[0].type, TokenType::Comment);
+  EXPECT_EQ(tokens[0].type, TokenType::LineComment);
   EXPECT_TRUE(tokens[0].value == u8"// Line comment");
 
   EXPECT_EQ(tokens[1].type, TokenType::Eol);
 
-  EXPECT_EQ(tokens[2].type, TokenType::Comment);
+  EXPECT_EQ(tokens[2].type, TokenType::BlockComment);
   EXPECT_TRUE(tokens[2].value == u8"/* Block comment */");
 }
 
@@ -167,16 +166,16 @@ TEST(Lexer, InvalidOrEdgeTokens) {
   base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 7);
 
-  EXPECT_EQ(tokens[0].type, TokenType::Number);
+  EXPECT_EQ(tokens[0].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[0].value == u8"123");
 
-  EXPECT_EQ(tokens[1].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[1].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[1].value == u8"abc");
 
   EXPECT_EQ(tokens[2].type, TokenType::Dot);
   EXPECT_TRUE(tokens[2].value == u8".");
 
-  EXPECT_EQ(tokens[3].type, TokenType::FloatingNumber);
+  EXPECT_EQ(tokens[3].type, TokenType::FloatNumber);
   EXPECT_TRUE(tokens[3].value == u8"123");
 
   EXPECT_EQ(tokens[4].type, TokenType::Tilde);
@@ -185,7 +184,7 @@ TEST(Lexer, InvalidOrEdgeTokens) {
   EXPECT_EQ(tokens[5].type, TokenType::Equal);
   EXPECT_TRUE(tokens[5].value == u8"=");
 
-  EXPECT_EQ(tokens[6].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[6].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[6].value == u8"$#");
 }
 
@@ -210,19 +209,19 @@ TEST(Lexer, NumberWithUnderscores) {
   base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 5);
 
-  EXPECT_EQ(tokens[0].type, TokenType::Number);
+  EXPECT_EQ(tokens[0].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[0].value == u8"1_234_567");
 
-  EXPECT_EQ(tokens[1].type, TokenType::BinaryNumber);
+  EXPECT_EQ(tokens[1].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[1].value == u8"1010_1010");
 
-  EXPECT_EQ(tokens[2].type, TokenType::HexNumber);
+  EXPECT_EQ(tokens[2].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[2].value == u8"12_ab_CD");
 
-  EXPECT_EQ(tokens[3].type, TokenType::OctalNumber);
+  EXPECT_EQ(tokens[3].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[3].value == u8"7_77");
 
-  EXPECT_EQ(tokens[4].type, TokenType::FloatingNumber);
+  EXPECT_EQ(tokens[4].type, TokenType::FloatNumber);
   EXPECT_TRUE(tokens[4].value == u8"1_234.56_78");
 }
 
@@ -263,10 +262,10 @@ TEST(Lexer, DotOperators) {
   EXPECT_EQ(tokens[0].type, TokenType::Dot);
   EXPECT_TRUE(tokens[0].value == u8".");
 
-  EXPECT_EQ(tokens[1].type, TokenType::DotDot);
+  EXPECT_EQ(tokens[1].type, TokenType::Range);
   EXPECT_TRUE(tokens[1].value == u8"..");
 
-  EXPECT_EQ(tokens[2].type, TokenType::DotDotDot);
+  EXPECT_EQ(tokens[2].type, TokenType::Ellipsis);
   EXPECT_TRUE(tokens[2].value == u8"...");
 }
 
@@ -295,7 +294,7 @@ TEST(Lexer, ComparisonsAndEquality) {
   EXPECT_EQ(tokens[5].type, TokenType::NotEqual);
   EXPECT_TRUE(tokens[5].value == u8"!=");
 
-  EXPECT_EQ(tokens[6].type, TokenType::ExclamationPoint);
+  EXPECT_EQ(tokens[6].type, TokenType::Not);
   EXPECT_TRUE(tokens[6].value == u8"!");
 }
 
@@ -347,7 +346,7 @@ TEST(Lexer, QuestionMarkOperators) {
   EXPECT_EQ(tokens[0].type, TokenType::QuestionMark);
   EXPECT_TRUE(tokens[0].value == u8"?");
 
-  EXPECT_EQ(tokens[1].type, TokenType::QuestionMarkQuestionMark);
+  EXPECT_EQ(tokens[1].type, TokenType::NullishCoalescing);
   EXPECT_TRUE(tokens[1].value == u8"??");
 
   EXPECT_EQ(tokens[2].type, TokenType::QuestionMark);
