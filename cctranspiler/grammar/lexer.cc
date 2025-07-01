@@ -590,26 +590,18 @@ bool Lexer::LexItem(const base::StringRefU8 text, mem_size& index) {
   // text or symbol name, those may start with an underscore
   else if (IsAsciiAlphabetic(text[index]) || text[index] == u8'_') {
     auto start = index;
-
-    if ((index + 1) >= text.length()) {
-      return false;
-    }
-
     index += 1;
-    if (index >= text.length()) {
-      return false;
-    }
 
     bool is_escaped = false;
-    while (index < text.length() && (IsAsciiAlphaNumeric(text[index])) ||
-           text[index] == u8'_') {
-      if (index == text.length()) {
-        break;
-      }
+
+    // grouping and bounds checking
+    while (index < text.length() &&
+           (IsAsciiAlphaNumeric(text[index]) || text[index] == u8'_' || is_escaped)) {
       if (!is_escaped && text[index] == u8'\\') {
         is_escaped = true;
-      } else
+      } else {
         is_escaped = false;
+      }
       index += 1;
     }
 
@@ -734,46 +726,61 @@ bool Lexer::LexNumber(const base::StringRefU8 text, mem_size& index) {
     return base::StringRefU8(&text.data()[start], end - start);
   };
 
-  // Number
   bool is_floating_point = false;
   auto start = index;
 
-  // skip over the whole numeric content
-  // for floats, this returns as soon as the first . is hit, then we can examine
-  // the rest.
-  while (index < text.length() && IsAsciiDigit(text[index]) ||
-         (text[index] == u8'_') && text[index - 1] != u8'_') {
-    index += 1;
+  for (; index < text.length(); index++) {
+    char8_t c = text[index];
+    if (!IsAsciiDigit(c) && c != u8'_')
+      break;
+
+    if (c == u8'_') {
+      if (index == start || text[index - 1] == u8'_') {
+        // Cannot start with or have consecutive underscores
+        break;
+      }
+    }
   }
 
-  if (text[index - 1] == u8'_') {
-    CHECK_BREAK;
-  } else if (text[index] == u8'.' && IsAsciiDigit(text[index - 1])) {
-    index += 1;
-    while (index < text.length() && IsAsciiDigit(text[index]) ||
-           (text[index] == u8'_') && text[index - 1] != u8'_' ||
-           text[index] == u8'e' || text[index] == u8'E' ||
-           text[index] == u8'+') {
-      index += 1;
+  // Check if we have decimal or exponent
+  if (index < text.length() && text[index] == u8'.') {
+    is_floating_point = true;
+    index++;
+
+    // Read fractional part
+    for (; index < text.length(); index++) {
+      char8_t c = text[index];
+      if (!IsAsciiDigit(c) && c != u8'_') {
+        if (c != u8'e' && c != u8'E')
+          break;
+
+        // Skip exponent marker
+        index++;
+        // Skip exponent sign
+        if (index < text.length() && (text[index] == u8'-' || text[index] == u8'+')) {
+          index++;
+        }
+        break;
+      }
     }
 
-    is_floating_point = true;
+    // Parse exponent digits
+    for (; index < text.length(); index++) {
+      char8_t c = text[index];
+      if (!IsAsciiDigit(c) && c != u8'_')
+        break;
+
+      if (c == u8'_') {
+        if (text[index - 1] == u8'_') {
+          break;
+        }
+      }
+    }
   }
 
-  // for now...
-  if (is_floating_point) {
-    tokens_.emplace_back(TokenType::FloatingNumber, make_ref(start, index));
-    return true;
-  }
-
-  // deduce a type based on the numeric width, in case the type is assigned to a
-  // var (auto) variable and so we can do bounds checking in the AST if we
-  // cannot fit the number into the type
-  const LiteralSuffix numeric_suffix = ConsumeNumericLiteralSuffix(text, index);
-  if (numeric_suffix != LiteralSuffix::NONE) {
-  }
-
-  tokens_.emplace_back(TokenType::Number, make_ref(start, index));
+  tokens_.emplace_back(is_floating_point ? TokenType::FloatingNumber : TokenType::Number,
+                       make_ref(start, index));
   return true;
 }
+
 }  // namespace aki
