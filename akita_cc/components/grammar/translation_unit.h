@@ -6,8 +6,9 @@
 
 #include "../utils/fifo_stack.h"
 #include "base/compiler.h"
-#include "object_pool.h"
-#include "syntax.h"
+
+#include <utils/object_pool.h>
+#include <grammar/syntax.h>
 
 namespace aki {
 #define AST_POOL(class_name, name) \
@@ -102,12 +103,12 @@ struct TranslationUnit {
 
  public:
   Scope* current_scope() {
-    BUGCHECK(current_scope_, "No scope exists to attach data to.");
+    BASE_BUGCHECK(current_scope_, "No scope exists to attach data to.");
     return current_scope_;
   }
 
   Scope* global_scope() {
-    BUGCHECK(!scopes_storage.empty(), "No global scope exists.");
+    BASE_BUGCHECK(!scopes_storage.empty(), "No global scope exists.");
     return scopes_storage.front().Get_UseOnlyIfYouKnowWhatYouareDoing();
   }
 

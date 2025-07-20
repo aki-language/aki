@@ -7,4 +7,4 @@ aki.rootdir = os.getcwd()
 aki.extdir = aki.rootdir .. "/extern"
 
 grouped_include("extern", "aki/extern")
-grouped_include("cctranspiler", "aki/cctranspiler")
+grouped_include("akita_cc", "aki/akita_cc")

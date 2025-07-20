@@ -1,0 +1,1 @@
+../../build/premake_win.bat

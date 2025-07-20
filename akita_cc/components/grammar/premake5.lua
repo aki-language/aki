@@ -1,0 +1,12 @@
+component2("aki_grammar")
+  files({
+    "*.cc",
+    "*.h",
+    "premake5.lua",
+  })
+  includedirs({
+    "../utils",
+  })
+  dependencies({
+    "fmtlib",
+  })

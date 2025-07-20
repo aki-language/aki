@@ -11,7 +11,10 @@ local function build_transpiler()
       "fmtlib",
       "base",
       "tbb",
-      "simdjson"
+      "simdjson",
+
+      "aki_codegen",
+      "aki_grammar",
     })
     blu.include_root()
     include_eq_components()
@@ -23,13 +26,13 @@ local function build_transpiler()
     --defines("FMT_HEADER_ONLY")
 end
 
-project("akits_cc")
+project("akita_cc")
   kind("ConsoleApp")
   build_transpiler()
   strip_testfiles()
   dependencies("fmtlib")
 
-unittest2("akits_cc:test")
+unittest2("akita_cc:test")
   build_transpiler()
   removefiles({
     "main.cc",
