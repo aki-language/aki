@@ -53,6 +53,45 @@ bool IsValidIdChar(char8_t c, bool is_first_char) {
 
 }  // namespace
 
+void LexQuotedString(TokenList& tokens,
+                     const base::StringRefU8 text,
+                     mem_size& index,
+                     TokenType string_type,
+                     mem_size opener_len) {
+  auto make_ref = [text](mem_size start, mem_size end) {
+    return base::StringRefU8(&text.data()[start], end - start);
+  };
+
+  const mem_size content_start = index + opener_len;
+  mem_size current_pos = content_start;
+  bool escaped = false;
+
+  while (current_pos < text.length()) {
+    if (text[current_pos] == u8'\\' && !escaped) {
+      escaped = true;
+    } else if (text[current_pos] == u8'"' && !escaped) {
+      // Found the end of the string
+      tokens.emplace_back(string_type, make_ref(content_start, current_pos));
+      index = current_pos + 1;  // Move index past the closing quote
+      return;
+    } else if (text[current_pos] == u8'\r' || text[current_pos] == u8'\n') {
+      BASE_LOGE(kLogTag, "Unterminated string literal (newline)");
+      // Create a token for the unterminated part for better error reporting
+      tokens.emplace_back(TokenType::Invalid, make_ref(content_start, current_pos));
+      index = current_pos;
+      return;
+    } else {
+      escaped = false;
+    }
+    current_pos++;
+  }
+
+  // If we exit the loop, the string was not terminated
+  BASE_LOGE(kLogTag, "Unterminated string literal (EOF)");
+  tokens.emplace_back(TokenType::Invalid, make_ref(content_start, current_pos));
+  index = current_pos;
+}
+
 bool Lexer::Parse(const base::StringRefU8 text) {
   auto make_ref = [text](mem_size start, mem_size end) {
     return base::StringRefU8(&text.data()[start], end - start);
@@ -98,83 +137,35 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         }
         break;
       }
-      case u8'"':
-      case u8'u':
-      case u8'U': {
-        // Check for string prefixes
-        if (c == u8'u' || c == u8'U') {
-          if (index + 1 >= text.length() || text[index + 1] != u8'"') {
-            // Not a string prefix, handle as identifier
-            LexIdentifier(tokens_, text, index);
-            break;
-          }
-          // Fall through to handle as string
+      case u8'"': {
+        // A simple, non-prefixed string. Opener length is 1 (the quote itself).
+        LexQuotedString(tokens_, text, index, TokenType::QuotedString, 1);
+        break;
+      }
+      case u8'u': {
+        // Look ahead for u16", u32", or u8" prefixes.
+        // We must check for longer prefixes first to correctly parse "u16" vs "u8".
+        if (index + 3 < text.length() && text[index + 1] == u8'1' &&
+            text[index + 2] == u8'6' && text[index + 3] == u8'"') {
+          // It's a u16 string. Opener length is 4 ("u16"").
+          LexQuotedString(tokens_, text, index, TokenType::QuotedStringU16, 4);
+
+        } else if (index + 3 < text.length() && text[index + 1] == u8'3' &&
+                   text[index + 2] == u8'2' && text[index + 3] == u8'"') {
+          // It's a u32 string. Opener length is 4 ("u32"").
+          LexQuotedString(tokens_, text, index, TokenType::QuotedStringU32, 4);
+
+        } else if (index + 2 < text.length() && text[index + 1] == u8'8' &&
+                   text[index + 2] == u8'"') {
+          // It's a u8 string, which we treat as a regular QuotedString.
+          // The "opener" is 3 characters long (u8").
+          LexQuotedString(tokens_, text, index, TokenType::QuotedString, 3);
+
+        } else {
+          // If it's not a recognized string prefix, it must be an identifier.
+          // This correctly handles variables like "user_id" or a standalone "u8".
+          LexIdentifier(tokens_, text, index);
         }
-
-        TokenType string_type = TokenType::QuotedString;
-        mem_size prefix_len = (c == u8'"') ? 1 : 0;
-
-        if (c == u8'u') {
-          string_type = TokenType::QuotedStringU16;
-          prefix_len = 2;
-        } else if (c == u8'U') {
-          string_type = TokenType::QuotedStringU32;
-          prefix_len = 2;
-        }
-
-        auto start = index;
-        index += prefix_len;  // Skip prefix
-
-        bool escaped = false;
-        u32 unicode_escape = 0;
-        mem_size escape_index = 0;
-
-        while (index < text.length()) {
-          if (text[index] == u8'\\' && !escaped) {
-            escaped = true;
-            escape_index = index;
-            unicode_escape = 0;
-            index++;
-            continue;
-          } else if (escaped) {
-            if (text[index] == u8'u') {
-              // Start of Unicode escape sequence
-              escape_index = index;
-              unicode_escape = 1;
-              index++;
-            } else if (unicode_escape > 0 && unicode_escape <= 4) {
-              // Continue Unicode escape sequence
-              if (!IsAsciiHexDigit(text[index])) {
-                BASE_LOGE(kLogTag, "Invalid hex digit in Unicode escape");
-                return false;
-              }
-              unicode_escape++;
-              if (unicode_escape > 4) {
-                escaped = false;
-              }
-              index++;
-            } else {
-              // Other escape sequence
-              escaped = false;
-              index++;
-            }
-          } else if (text[index] == u8'"') {
-            break;
-          } else if (text[index] == u8'\r' || text[index] == u8'\n') {
-            BASE_LOGE(kLogTag, "Unterminated string literal (newline)");
-            return false;
-          } else {
-            index++;
-          }
-        }
-
-        if (index >= text.length() || text[index] != u8'"') {
-          BASE_LOGE(kLogTag, "Unterminated string literal");
-          return false;
-        }
-
-        tokens_.emplace_back(Token(string_type, make_ref(start + prefix_len, index)));
-        index++;  // Skip closing quote
         break;
       }
       case u8'+': {
@@ -248,18 +239,22 @@ bool Lexer::Parse(const base::StringRefU8 text) {
           } else if (text[index] == u8'*') {
             // Block comment
             auto comment_start = index - 1;
-            index++;  // Skip initial asterisk
+            index++;                 // Skip initial asterisk
+            bool found_end = false;  // <-- ADD a flag
             while (index < text.length()) {
               if (text[index] == u8'*' && index + 1 < text.length() &&
                   text[index + 1] == u8'/') {
                 tokens_.emplace_back(TokenType::BlockComment,
                                      make_ref(comment_start, index + 2));
-                index += 2;  // Skip closing */
+                index += 2;        // Skip closing */
+                found_end = true;  // <-- SET the flag
                 break;
               }
               index++;
             }
-            if (index >= text.length()) {
+            // Only create an unclosed comment token if the end was NOT found
+            if (!found_end) {  // <-- CHECK the flag
+              // This implies the while loop finished because index >= text.length()
               tokens_.emplace_back(TokenType::BlockComment,
                                    make_ref(comment_start, index));
             }
@@ -423,7 +418,8 @@ bool Lexer::Parse(const base::StringRefU8 text) {
             continue;
           } else if (IsAsciiDigit(text[index])) {
             // Leading dot followed by digits
-            return LexNumber(tokens_, text, index, start, true);
+            LexNumber(tokens_, text, index, start, true);  // don't return!
+            continue;         
           }
         }
         tokens_.emplace_back(TokenType::Dot, make_ref(start, start + 1));
@@ -553,6 +549,17 @@ void LexIdentifier(TokenList& tokens, const base::StringRefU8 text, mem_size& in
   tokens.emplace_back(Token(type, id_ref));
 }
 
+
+inline bool IsOctalDigit(char8_t c) {
+  return c >= u8'0' && c <= u8'7';
+}
+inline bool IsBinaryDigit(char8_t c) {
+  return c == u8'0' || c == u8'1';
+}
+inline bool IsHexDigit(char8_t c) {
+  return IsAsciiDigit(c) || (c >= u8'a' && c <= u8'f') || (c >= u8'A' && c <= u8'F');
+}
+
 // non static for unit testing purposes
 bool LexNumber(TokenList& tokens,
                const base::StringRefU8 text,
@@ -563,48 +570,71 @@ bool LexNumber(TokenList& tokens,
     return base::StringRefU8(&text.data()[start], end - start);
   };
 
+  // Helper to check for a suffix without going out of bounds
+  auto check_suffix = [text](mem_size pos, const char* suffix) {
+    base::StringRefU8 s_ref(reinterpret_cast<const char8_t*>(suffix));
+    if (pos + s_ref.length() > text.length())
+      return false;
+    return memcmp(&text.data()[pos], s_ref.data(), s_ref.length()) == 0;
+  };
+
   const mem_size start = custom_start != index ? custom_start : index;
   bool is_floating_point = has_leading_dot;
+  bool has_digit = false;
   bool has_exponent = false;
-  bool has_digit = false;  // Ensures number has at least one digit
+  mem_size number_body_start = start;  // Will be moved past the prefix if one exists
 
-  // Handle leading sign (for exponent only)
-  if (custom_start == index && index < text.length() &&
-      (text[index] == u8'+' || text[index] == u8'-')) {
-    index++;
-  }
+  // Handle Hex, Binary, and Octal Prefixes
+  if (!has_leading_dot && index == start && text[index] == u8'0' &&
+      index + 1 < text.length()) {
+    char8_t prefix = text[index + 1];
+    bool (*is_valid_digit)(char8_t) = nullptr;
 
-  // Integer part
-  if (!has_leading_dot) {
-    while (index < text.length()) {
-      if (IsAsciiDigit(text[index])) {
-        has_digit = true;
+    if (prefix == u8'x' || prefix == u8'X')
+      is_valid_digit = &IsHexDigit;
+    else if (prefix == u8'b' || prefix == u8'B')
+      is_valid_digit = &IsBinaryDigit;
+    else if (prefix == u8'o' || prefix == u8'O')
+      is_valid_digit = &IsOctalDigit;
+
+    if (is_valid_digit) {
+      index += 2;  // Consume prefix
+      number_body_start = index;
+
+      while (index < text.length() &&
+             (is_valid_digit(text[index]) || text[index] == u8'_')) {
+        if (text[index] != u8'_')
+          has_digit = true;
         index++;
-      } else if (text[index] == u8'_' && index + 1 < text.length() &&
-                 IsAsciiDigit(text[index + 1])) {
-        // Valid underscore (between digits)
-        index += 2;
-        has_digit = true;
-      } else {
-        break;
       }
+
+      if (!has_digit) { /* Error handling for "0x" with no digits */
+      }
+      // This is an integer, so we can skip float/exponent parsing
+      tokens.emplace_back(TokenType::IntegerNumber, make_ref(number_body_start, index));
+      return true;
     }
   }
 
+  // Integer part
+  mem_size integer_end = index;
+  while (integer_end < text.length() &&
+         (IsAsciiDigit(text[integer_end]) || text[integer_end] == u8'_')) {
+    if (text[integer_end] != u8'_')
+      has_digit = true;
+    integer_end++;
+  }
+  index = integer_end;
+
   // Fractional part
   if (index < text.length() && text[index] == u8'.') {
-    is_floating_point = true;
-    index++;
-    while (index < text.length()) {
-      if (IsAsciiDigit(text[index])) {
+    if (index + 1 < text.length() && IsAsciiDigit(text[index + 1])) {
+      is_floating_point = true;
+      index++;  // consume '.'
+      while (index < text.length() &&
+             (IsAsciiDigit(text[index]) || text[index] == u8'_')) {
+        has_digit = true;
         index++;
-        has_digit = true;
-      } else if (text[index] == u8'_' && index + 1 < text.length() &&
-                 IsAsciiDigit(text[index + 1])) {
-        index += 2;
-        has_digit = true;
-      } else {
-        break;
       }
     }
   }
@@ -641,30 +671,39 @@ bool LexNumber(TokenList& tokens,
     }
   }
 
+
   if (!has_digit) {
-    BASE_LOGE(kLogTag, "Invalid numeric literal");
-    tokens.emplace_back(TokenType::InvalidNumber, make_ref(start, index));
-    return true;
+    return false;
   }
 
-  // Numeric suffix (optional)
+  // try to determine the type based on the suffix
   if (index < text.length()) {
-    char8_t suffix = text[index];
-    if (suffix == u8'u' || suffix == u8'i' || suffix == u8'f') {
-      TokenType suffix_type = TokenType::IntegerNumber;
-      if (suffix == u8'f') {
-        suffix_type = TokenType::FloatNumber;
+    char8_t suffix_char = text[index];
+    if (suffix_char == u8'u' || suffix_char == u8'i' || suffix_char == u8'f') {
+      // Check for multi-character suffixes first
+      if (check_suffix(index, "u64") || check_suffix(index, "u32") ||
+          check_suffix(index, "u16") || check_suffix(index, "u8")) {
+        index += 3;  // uXX
+      } else if (check_suffix(index, "i64") || check_suffix(index, "i32") ||
+                 check_suffix(index, "i16") || check_suffix(index, "i8")) {
+        index += 3;  // iXX
+      } else if (check_suffix(index, "f64") || check_suffix(index, "f32")) {
         is_floating_point = true;
+        index += 3;  // fXX
+      } else {
+        // Fallback to single-character suffix
+        index++;
+        if (suffix_char == u8'f') {
+          is_floating_point = true;
+        }
       }
-      index++;
-      tokens.emplace_back(Token(suffix_type, make_ref(start, index)));
-      return true;
     }
   }
 
-  TokenType base_type =
+  TokenType final_type =
       is_floating_point ? TokenType::FloatNumber : TokenType::IntegerNumber;
-  tokens.emplace_back(Token(base_type, make_ref(start, index)));
+  // NOTE: tokens contain the suffix within their value
+  tokens.emplace_back(Token(final_type, make_ref(start, index)));
   return true;
 }
 
