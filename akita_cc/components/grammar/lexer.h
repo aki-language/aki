@@ -6,9 +6,11 @@
 #include <base/strings/string_ref.h>
 #include <base/strings/xstring.h>
 
+#include "api.h"
 #include "token.h"
 
 namespace aki {
+using TokenList = base::Vector<Token>;
 
 // The lexer splits the input stream into tokens.
 class Lexer {
@@ -24,14 +26,18 @@ class Lexer {
   bool LexHexadecimalNumber(const base::StringRefU8, mem_size&);
   bool LexOctalNumber(const base::StringRefU8, mem_size&);
   bool LexBinaryNumber(const base::StringRefU8, mem_size&);
-  bool LexNumber(const base::StringRefU8 text,
-                 mem_size& index,
-                 mem_size custom_start,
-                 bool has_leading_dot);
-
-  void LexIdentifier(const base::StringRefU8 text, mem_size& index);
 
  private:
   base::Vector<Token> tokens_;
 };
+
+AKI_GRAMMAR_API void LexIdentifier(TokenList& tokens,
+                                   const base::StringRefU8 text,
+                                   mem_size& index);
+AKI_GRAMMAR_API bool LexNumber(TokenList& tokens,
+                               const base::StringRefU8 text,
+                               mem_size& index,
+                               mem_size custom_start,
+                               bool has_leading_dot);
+
 }  // namespace aki

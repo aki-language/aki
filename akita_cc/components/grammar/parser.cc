@@ -1,5 +1,7 @@
 // Copyright (C) The Fusion Authors/Vincent Hengel 2023
 
+#if 0
+
 #include "parser.h"
 
 #include <base/containers/vector.h>
@@ -857,3 +859,5 @@ ParseResult<ParsedTypeRef> Parser::ParseType() {
   return ParseResult(new_type.handle);
 }
 }  // namespace aki
+
+#endif

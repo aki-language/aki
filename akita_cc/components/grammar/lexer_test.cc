@@ -1,16 +1,15 @@
 // Copyright (C) 2022 Vincent Hengel.
 
 #include "lexer.h"
-#include <base/logging.h> // for fmt
+#include <base/logging.h>  // for fmt
 #include <gtest/gtest.h>
 
 namespace {
 using namespace aki;
 
-static void DumpTokens(const base::Vector<aki::Token>& tok)
-{
-   for (const auto& t : tok)
-    fmt::print("{}: {}\n", (int)t.type, (const char*)t.StringifyContent().c_str());
+static void DumpTokens(const base::Vector<aki::Token>& tok) {
+  for (const auto& t : tok)
+    fmt::print("{}: {}\n", t.StringifyType(), (const char*)t.StringifyContent().c_str());
 }
 
 TEST(Lexer, TestSimpleTokens) {
@@ -18,7 +17,7 @@ TEST(Lexer, TestSimpleTokens) {
   lex.Parse(u8";:+++=");
 
   base::Vector<aki::Token>& tokens = lex.tokens();
-  ASSERT_EQ(tokens.size(), 4);
+  ASSERT_EQ(tokens.size(), 5);
 
   EXPECT_EQ(tokens[0].type, TokenType::Semicolon);
   EXPECT_TRUE(tokens[0].value == u8";");
@@ -38,7 +37,8 @@ TEST(Lexer, ParseNumberDecl) {
   lex.Parse(u8"f32 floating_point = 1.2345;");
 
   base::Vector<aki::Token>& tokens = lex.tokens();
-  EXPECT_EQ(tokens.size(), 5);
+  DumpTokens(tokens);
+  EXPECT_EQ(tokens.size(), 6);
 
   EXPECT_EQ(tokens[0].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[0].value == u8"f32");
@@ -54,6 +54,9 @@ TEST(Lexer, ParseNumberDecl) {
 
   EXPECT_EQ(tokens[4].type, TokenType::Semicolon);
   EXPECT_TRUE(tokens[4].value == u8";");
+
+  EXPECT_EQ(tokens[5].type, TokenType::Eof);
+  EXPECT_TRUE(tokens[5].value == u8"");
 }
 
 TEST(Lexer, OperatorTokens) {
@@ -61,7 +64,7 @@ TEST(Lexer, OperatorTokens) {
   lex.Parse(u8"= == + ++ += - -- -= * *=");
 
   base::Vector<aki::Token>& tokens = lex.tokens();
-  ASSERT_EQ(tokens.size(), 10);
+  ASSERT_EQ(tokens.size(), 11);
 
   // Validate each operator token
   EXPECT_EQ(tokens[0].type, TokenType::Equal);
@@ -81,7 +84,8 @@ TEST(Lexer, NumberVariety) {
   lex.Parse(u8"123 123.456 0x12ab 0b1010 0o77 123u32 456 f32");
 
   base::Vector<aki::Token>& tokens = lex.tokens();
-  ASSERT_EQ(tokens.size(), 9);
+  DumpTokens(tokens);
+  ASSERT_EQ(tokens.size(), 10);
 
   // the lexer will strip the prefix in its internal repr
   EXPECT_EQ(tokens[0].type, TokenType::IntegerNumber);
@@ -102,13 +106,13 @@ TEST(Lexer, NumberVariety) {
   EXPECT_EQ(tokens[5].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[5].value == u8"123");
 
-  EXPECT_EQ(tokens[6].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[6].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[6].value == u8"u32");
 
   EXPECT_EQ(tokens[7].type, TokenType::IntegerNumber);
   EXPECT_TRUE(tokens[7].value == u8"456");
 
-  EXPECT_EQ(tokens[8].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[8].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[8].value == u8"f32");
 }
 
@@ -124,19 +128,19 @@ TEST(Lexer, StringLiterals) {
   EXPECT_EQ(tokens[0].type, TokenType::QuotedString);
   EXPECT_TRUE(tokens[0].value == u8"\"plain_string\"");
 
-  EXPECT_EQ(tokens[1].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[1].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[1].value == u8"u8");
 
   EXPECT_EQ(tokens[2].type, TokenType::QuotedString);
   EXPECT_TRUE(tokens[2].value == u8"\"utf8_string\"");
 
-  EXPECT_EQ(tokens[3].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[3].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[3].value == u8"u16");
 
   EXPECT_EQ(tokens[4].type, TokenType::QuotedStringU16);
   EXPECT_TRUE(tokens[4].value == u8"\"utf16_string\"");
 
-  EXPECT_EQ(tokens[5].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[5].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[5].value == u8"u32");
 
   EXPECT_EQ(tokens[6].type, TokenType::QuotedStringU32);
@@ -367,25 +371,25 @@ TEST(Lexer, MixedSymbolicIdentifiers) {
   DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 7);
 
-  EXPECT_EQ(tokens[0].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[0].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[0].value == u8"_start");
 
-  EXPECT_EQ(tokens[1].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[1].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[1].value == u8"_var123");
 
   EXPECT_EQ(tokens[2].type, TokenType::Dollar);
   EXPECT_TRUE(tokens[2].value == u8"$");
 
-  EXPECT_EQ(tokens[3].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[3].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[3].value == u8"special");
 
-  EXPECT_EQ(tokens[4].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[4].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[4].value == u8"at");
 
-  EXPECT_EQ(tokens[5].type, TokenType::CharacterSequence);
+  EXPECT_EQ(tokens[5].type, TokenType::Identifier);
   EXPECT_TRUE(tokens[5].value == u8"at@");
 
-  EXPECT_EQ(tokens[6].type, TokenType::Unknown);
+  EXPECT_EQ(tokens[6].type, TokenType::Invalid);
 }
 
 TEST(Lexer, EmptyInput) {

@@ -20,10 +20,9 @@ local function build_transpiler()
     include_eq_components()
     includedirs({
       ".",
-      "../",
+      "../components",
       "../../docs",
     })
-    --defines("FMT_HEADER_ONLY")
 end
 
 project("akita_cc")
@@ -32,7 +31,7 @@ project("akita_cc")
   strip_testfiles()
   dependencies("fmtlib")
 
-unittest2("akita_cc:test")
+unittest2("akita_cc:main_tests")
   build_transpiler()
   removefiles({
     "main.cc",

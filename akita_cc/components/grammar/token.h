@@ -1,4 +1,4 @@
-// Copyright (C) The Fusion Authors/Vincent Hengel 2023
+// Copyright (C) The Fusion Authors/Vincent Hengel 2023-2025
 #pragma once
 
 #include <base/strings/string_ref.h>
@@ -72,7 +72,7 @@ enum class TokenType {
   Range,     // ..
   Ellipsis,  // ...
 
-  // Literals
+  // Literals (numbers are converted from hex, octal, binary, etc. to decimal)
   IntegerNumber,    // 123, 0x1F
   FloatNumber,      // 3.14, 1.2e3
   BoolLiteral,      // true, false

@@ -5,13 +5,12 @@
 #include <base/logging.h>
 #include <base/compiler.h>
 #include <base/arch.h>
-#include <base/string_utils.h>
+// #include <base/string_utils.h>
 
 namespace aki {
 
 namespace {
-
-constexpr char kTag[] = "lexer";
+constexpr char kLogTag[] = "lexer";
 
 bool IsAsciiHexDigit(char8_t c) {
   if ((c >= u8'0' && c <= u8'9') || (c >= u8'a' && c <= u8'f') ||
@@ -55,9 +54,16 @@ bool IsValidIdChar(char8_t c, bool is_first_char) {
 }  // namespace
 
 bool Lexer::Parse(const base::StringRefU8 text) {
-  auto make_ref = [&](mem_size start, mem_size end) {
+  auto make_ref = [text](mem_size start, mem_size end) {
     return base::StringRefU8(&text.data()[start], end - start);
   };
+
+#define HANDLE_SINGLE(c, type)                                   \
+  case c: {                                                            \
+    tokens_.emplace_back(TokenType::type, make_ref(index, index + 1)); \
+    index++;                                                           \
+    break;                                                             \
+  }
 
   mem_size index = 0;
   while (index < text.length()) {
@@ -68,54 +74,19 @@ bool Lexer::Parse(const base::StringRefU8 text) {
       case u8'\t':
         index++;
         break;
-      case u8'\n':
-        tokens_.emplace_back(TokenType::Eol, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8';':
-        tokens_.emplace_back(TokenType::Semicolon, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8',':
-        tokens_.emplace_back(TokenType::Comma, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'(':
-        tokens_.emplace_back(TokenType::LParen, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8')':
-        tokens_.emplace_back(TokenType::RParen, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'{':
-        tokens_.emplace_back(TokenType::LCurly, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'}':
-        tokens_.emplace_back(TokenType::RCurly, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'[':
-        tokens_.emplace_back(TokenType::LSquare, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8']':
-        tokens_.emplace_back(TokenType::RSquare, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'$':
-        tokens_.emplace_back(TokenType::Dollar, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'~':
-        tokens_.emplace_back(TokenType::Tilde, make_ref(index, index + 1));
-        index++;
-        break;
-      case u8'#':
-        tokens_.emplace_back(TokenType::Hash, make_ref(index, index + 1));
-        index++;
-        break;
+    HANDLE_SINGLE(u8'\n', Eol)
+    HANDLE_SINGLE(u8';', Semicolon)
+    HANDLE_SINGLE(u8',', Comma)
+    HANDLE_SINGLE(u8'(', LParen)
+    HANDLE_SINGLE(u8')', RParen)
+    HANDLE_SINGLE(u8'{', LCurly)
+    HANDLE_SINGLE(u8'}', RCurly)
+    HANDLE_SINGLE(u8'[', LSquare)
+    HANDLE_SINGLE(u8']', RSquare)
+    HANDLE_SINGLE(u8'$', Dollar)
+    HANDLE_SINGLE(u8'~', Tilde)
+    HANDLE_SINGLE(u8'#', Hash)
+
       case u8':': {
         auto start_idx = index;
         index += 1;
@@ -134,7 +105,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         if (c == u8'u' || c == u8'U') {
           if (index + 1 >= text.length() || text[index + 1] != u8'"') {
             // Not a string prefix, handle as identifier
-            LexIdentifier(text, index);
+            LexIdentifier(tokens_, text, index);
             break;
           }
           // Fall through to handle as string
@@ -174,7 +145,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
             } else if (unicode_escape > 0 && unicode_escape <= 4) {
               // Continue Unicode escape sequence
               if (!IsAsciiHexDigit(text[index])) {
-                BASE_LOGE(kTag, "Invalid hex digit in Unicode escape");
+                BASE_LOGE(kLogTag, "Invalid hex digit in Unicode escape");
                 return false;
               }
               unicode_escape++;
@@ -190,7 +161,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
           } else if (text[index] == u8'"') {
             break;
           } else if (text[index] == u8'\r' || text[index] == u8'\n') {
-            BASE_LOGE(kTag, "Unterminated string literal (newline)");
+            BASE_LOGE(kLogTag, "Unterminated string literal (newline)");
             return false;
           } else {
             index++;
@@ -198,7 +169,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         }
 
         if (index >= text.length() || text[index] != u8'"') {
-          BASE_LOGE(kTag, "Unterminated string literal");
+          BASE_LOGE(kLogTag, "Unterminated string literal");
           return false;
         }
 
@@ -452,7 +423,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
             continue;
           } else if (IsAsciiDigit(text[index])) {
             // Leading dot followed by digits
-            return LexNumber(text, index, start, true);
+            return LexNumber(tokens_, text, index, start, true);
           }
         }
         tokens_.emplace_back(TokenType::Dot, make_ref(start, start + 1));
@@ -492,7 +463,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         }
 
         if (index >= text.length() || text[index] != u8'`') {
-          BASE_LOGE(kTag, "Unterminated template literal");
+          BASE_LOGE(kLogTag, "Unterminated template literal");
           return false;
         }
 
@@ -502,24 +473,24 @@ bool Lexer::Parse(const base::StringRefU8 text) {
       }
       default: {
         if (IsAsciiDigit(c)) {
-          LexNumber(text, index, index, false);
+          LexNumber(tokens_, text, index, index, false);
         } else if (c == u8'_' || IsAsciiAlphabetic(c)) {
-          LexIdentifier(text, index);
+          LexIdentifier(tokens_, text, index);
         } else {
-          BASE_LOGE(kTag, "Unrecognized character: {}", static_cast<char>(c));
+          BASE_LOGE(kLogTag, "Unrecognized character: {}", static_cast<char>(c));
           tokens_.emplace_back(TokenType::Invalid, make_ref(index, index + 1));
           index++;
         }
         break;
       }
     }  // end switch
-  }  // end while
+  }    // end while
 
   tokens_.emplace_back(TokenType::Eof, make_ref(index, index));
   return true;
 }
 
-void Lexer::LexIdentifier(const base::StringRefU8 text, mem_size& index) {
+void LexIdentifier(TokenList& tokens, const base::StringRefU8 text, mem_size& index) {
   auto make_ref = [&](mem_size start, mem_size end) {
     return base::StringRefU8(&text.data()[start], end - start);
   };
@@ -579,14 +550,16 @@ void Lexer::LexIdentifier(const base::StringRefU8 text, mem_size& index) {
   else if (id_ref == u8"true" || id_ref == u8"false")
     type = TokenType::BoolLiteral;
 
-  tokens_.emplace_back(Token(type, id_ref));
+  tokens.emplace_back(Token(type, id_ref));
 }
 
-bool Lexer::LexNumber(const base::StringRefU8 text,
-                      mem_size& index,
-                      mem_size custom_start,
-                      bool has_leading_dot) {
-  auto make_ref = [&](mem_size start, mem_size end) {
+// non static for unit testing purposes
+bool LexNumber(TokenList& tokens,
+               const base::StringRefU8 text,
+               mem_size& index,
+               mem_size custom_start,
+               bool has_leading_dot) {
+  auto make_ref = [text](mem_size start, mem_size end) {
     return base::StringRefU8(&text.data()[start], end - start);
   };
 
@@ -652,7 +625,7 @@ bool Lexer::LexNumber(const base::StringRefU8 text,
       has_digit = true;
       index++;
     } else {
-      BASE_LOGE(kTag, "Missing exponent value");
+      BASE_LOGE(kLogTag, "Missing exponent value");
       return false;
     }
 
@@ -669,8 +642,8 @@ bool Lexer::LexNumber(const base::StringRefU8 text,
   }
 
   if (!has_digit) {
-    BASE_LOGE(kTag, "Invalid numeric literal");
-    tokens_.emplace_back(TokenType::InvalidNumber, make_ref(start, index));
+    BASE_LOGE(kLogTag, "Invalid numeric literal");
+    tokens.emplace_back(TokenType::InvalidNumber, make_ref(start, index));
     return true;
   }
 
@@ -684,14 +657,14 @@ bool Lexer::LexNumber(const base::StringRefU8 text,
         is_floating_point = true;
       }
       index++;
-      tokens_.emplace_back(Token(suffix_type, make_ref(start, index)));
+      tokens.emplace_back(Token(suffix_type, make_ref(start, index)));
       return true;
     }
   }
 
   TokenType base_type =
       is_floating_point ? TokenType::FloatNumber : TokenType::IntegerNumber;
-  tokens_.emplace_back(Token(base_type, make_ref(start, index)));
+  tokens.emplace_back(Token(base_type, make_ref(start, index)));
   return true;
 }
 

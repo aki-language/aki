@@ -1,4 +1,5 @@
 component2("aki_grammar")
+  kind("SharedLib")
   files({
     "*.cc",
     "*.h",
@@ -7,6 +8,20 @@ component2("aki_grammar")
   includedirs({
     "../utils",
   })
+  defines("AKI_GRAMMAR_BUILD")
   dependencies({
     "fmtlib",
   })
+
+unittest2("aki_grammar:grammar_tests")
+  files({
+    "*.cc",
+    "*.h",
+  })
+  includedirs({
+    "../utils",
+  })
+  dependencies({
+    "fmtlib"
+  })
+  add_generic_test_main()

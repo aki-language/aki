@@ -1,4 +1,5 @@
 component2("aki_codegen")
+  kind("SharedLib")
   files({
     "*.cc",
     "*.h",
@@ -10,3 +11,16 @@ component2("aki_codegen")
   dependencies({
     "fmtlib",
   })
+
+unittest2("aki_codegen:codegen_tests")
+  files({
+    "*.cc",
+    "*.h",
+  })
+  includedirs({
+    "../utils",
+  })
+  dependencies({
+    "fmtlib"
+  })
+  add_generic_test_main()

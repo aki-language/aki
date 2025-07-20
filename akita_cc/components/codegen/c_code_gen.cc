@@ -256,7 +256,7 @@ void CCodeGen::EmitFunction(const ParsedFunctionDecl& decl,
     if (param->variable.is_const) params += u8"const ";
     const ParsedType* var_type =
         translation_unit_->all_types.Get(param->variable.type);
-    BUGCHECK(var_type, "Failed to find type for function parameter decl.");
+    BASE_BUGCHECK(var_type, "Failed to find type for function parameter decl.");
     params += base::MakeStringCopy(var_type->data, true);
     params += u8" ";
     params += base::MakeStringCopy(param->variable.name);
