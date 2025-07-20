@@ -53,53 +53,14 @@ bool IsValidIdChar(char8_t c, bool is_first_char) {
 
 }  // namespace
 
-void LexQuotedString(TokenList& tokens,
-                     const base::StringRefU8 text,
-                     mem_size& index,
-                     TokenType string_type,
-                     mem_size opener_len) {
-  auto make_ref = [text](mem_size start, mem_size end) {
-    return base::StringRefU8(&text.data()[start], end - start);
-  };
-
-  const mem_size content_start = index + opener_len;
-  mem_size current_pos = content_start;
-  bool escaped = false;
-
-  while (current_pos < text.length()) {
-    if (text[current_pos] == u8'\\' && !escaped) {
-      escaped = true;
-    } else if (text[current_pos] == u8'"' && !escaped) {
-      // Found the end of the string
-      tokens.emplace_back(string_type, make_ref(content_start, current_pos));
-      index = current_pos + 1;  // Move index past the closing quote
-      return;
-    } else if (text[current_pos] == u8'\r' || text[current_pos] == u8'\n') {
-      BASE_LOGE(kLogTag, "Unterminated string literal (newline)");
-      // Create a token for the unterminated part for better error reporting
-      tokens.emplace_back(TokenType::Invalid, make_ref(content_start, current_pos));
-      index = current_pos;
-      return;
-    } else {
-      escaped = false;
-    }
-    current_pos++;
-  }
-
-  // If we exit the loop, the string was not terminated
-  BASE_LOGE(kLogTag, "Unterminated string literal (EOF)");
-  tokens.emplace_back(TokenType::Invalid, make_ref(content_start, current_pos));
-  index = current_pos;
-}
-
-bool Lexer::Parse(const base::StringRefU8 text) {
+bool LexString(TokenList& tokens, const base::StringRefU8 text) {
   auto make_ref = [text](mem_size start, mem_size end) {
     return base::StringRefU8(&text.data()[start], end - start);
   };
 
 #define HANDLE_SINGLE(c, type)                                   \
   case c: {                                                            \
-    tokens_.emplace_back(TokenType::type, make_ref(index, index + 1)); \
+    tokens.emplace_back(TokenType::type, make_ref(index, index + 1)); \
     index++;                                                           \
     break;                                                             \
   }
@@ -131,15 +92,15 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index += 1;
         if (index < text.length() && text[index] == u8':') {
           index += 1;
-          tokens_.emplace_back(TokenType::ColonColon, make_ref(start_idx, index));
+          tokens.emplace_back(TokenType::ColonColon, make_ref(start_idx, index));
         } else {
-          tokens_.emplace_back(TokenType::Colon, make_ref(start_idx, start_idx + 1));
+          tokens.emplace_back(TokenType::Colon, make_ref(start_idx, start_idx + 1));
         }
         break;
       }
       case u8'"': {
         // A simple, non-prefixed string. Opener length is 1 (the quote itself).
-        LexQuotedString(tokens_, text, index, TokenType::QuotedString, 1);
+        LexQuotedString(tokens, text, index, TokenType::QuotedString, 1);
         break;
       }
       case u8'u': {
@@ -148,23 +109,23 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         if (index + 3 < text.length() && text[index + 1] == u8'1' &&
             text[index + 2] == u8'6' && text[index + 3] == u8'"') {
           // It's a u16 string. Opener length is 4 ("u16"").
-          LexQuotedString(tokens_, text, index, TokenType::QuotedStringU16, 4);
+          LexQuotedString(tokens, text, index, TokenType::QuotedStringU16, 4);
 
         } else if (index + 3 < text.length() && text[index + 1] == u8'3' &&
                    text[index + 2] == u8'2' && text[index + 3] == u8'"') {
           // It's a u32 string. Opener length is 4 ("u32"").
-          LexQuotedString(tokens_, text, index, TokenType::QuotedStringU32, 4);
+          LexQuotedString(tokens, text, index, TokenType::QuotedStringU32, 4);
 
         } else if (index + 2 < text.length() && text[index + 1] == u8'8' &&
                    text[index + 2] == u8'"') {
           // It's a u8 string, which we treat as a regular QuotedString.
           // The "opener" is 3 characters long (u8").
-          LexQuotedString(tokens_, text, index, TokenType::QuotedString, 3);
+          LexQuotedString(tokens, text, index, TokenType::QuotedString, 3);
 
         } else {
           // If it's not a recognized string prefix, it must be an identifier.
           // This correctly handles variables like "user_id" or a standalone "u8".
-          LexIdentifier(tokens_, text, index);
+          LexIdentifier(tokens, text, index);
         }
         break;
       }
@@ -173,14 +134,14 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index++;
         if (index < text.length()) {
           if (text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::PlusEquals, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::PlusEquals, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'+') {
-            tokens_.emplace_back(TokenType::PlusPlus, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::PlusPlus, make_ref(start, ++index));
             continue;
           }
         }
-        tokens_.emplace_back(TokenType::Plus, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Plus, make_ref(start, start + 1));
         break;
       }
       case u8'-': {
@@ -188,27 +149,27 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index++;
         if (index < text.length()) {
           if (text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::MinusEquals, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::MinusEquals, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'-') {
-            tokens_.emplace_back(TokenType::MinusMinus, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::MinusMinus, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'>') {
-            tokens_.emplace_back(TokenType::Arrow, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::Arrow, make_ref(start, ++index));
             continue;
           }
         }
-        tokens_.emplace_back(TokenType::Minus, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Minus, make_ref(start, start + 1));
         break;
       }
       case u8'*': {
         auto start = index;
         index++;
         if (index < text.length() && text[index] == u8'=') {
-          tokens_.emplace_back(TokenType::AsteriskEqual, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::AsteriskEqual, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::Asterisk, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Asterisk, make_ref(start, start + 1));
         break;
       }
       case u8'/': {
@@ -216,7 +177,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index++;
         if (index < text.length()) {
           if (text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::ForwardSlashEqual, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::ForwardSlashEqual, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'/') {
             // Line comment
@@ -224,14 +185,14 @@ bool Lexer::Parse(const base::StringRefU8 text) {
             while (index < text.length()) {
               if (text[index] == u8'\n') {
                 // Don't include newline
-                tokens_.emplace_back(TokenType::LineComment,
+                tokens.emplace_back(TokenType::LineComment,
                                      make_ref(comment_start, index));
                 break;
               }
               index++;
             }
             if (index == text.length()) {
-              tokens_.emplace_back(TokenType::LineComment,
+              tokens.emplace_back(TokenType::LineComment,
                                    make_ref(comment_start, index));
             }
             index++;  // Skip newline or EOF
@@ -244,7 +205,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
             while (index < text.length()) {
               if (text[index] == u8'*' && index + 1 < text.length() &&
                   text[index + 1] == u8'/') {
-                tokens_.emplace_back(TokenType::BlockComment,
+                tokens.emplace_back(TokenType::BlockComment,
                                      make_ref(comment_start, index + 2));
                 index += 2;        // Skip closing */
                 found_end = true;  // <-- SET the flag
@@ -255,13 +216,13 @@ bool Lexer::Parse(const base::StringRefU8 text) {
             // Only create an unclosed comment token if the end was NOT found
             if (!found_end) {  // <-- CHECK the flag
               // This implies the while loop finished because index >= text.length()
-              tokens_.emplace_back(TokenType::BlockComment,
+              tokens.emplace_back(TokenType::BlockComment,
                                    make_ref(comment_start, index));
             }
             continue;
           }
         }
-        tokens_.emplace_back(TokenType::ForwardSlash, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::ForwardSlash, make_ref(start, start + 1));
         break;
       }
       case u8'=': {
@@ -269,14 +230,14 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index++;
         if (index < text.length()) {
           if (text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::DoubleEqual, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::DoubleEqual, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'>') {
-            tokens_.emplace_back(TokenType::FatArrow, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::FatArrow, make_ref(start, ++index));
             continue;
           }
         }
-        tokens_.emplace_back(TokenType::Equal, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Equal, make_ref(start, start + 1));
         break;
       }
       case u8'>': {
@@ -284,24 +245,24 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index++;
         if (index < text.length()) {
           if (text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::GreaterThanOrEqual, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::GreaterThanOrEqual, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'>') {
             index++;
             if (index < text.length() && text[index] == u8'=') {
-              tokens_.emplace_back(TokenType::RightShiftEqual, make_ref(start, ++index));
+              tokens.emplace_back(TokenType::RightShiftEqual, make_ref(start, ++index));
               continue;
             } else if (index < text.length() && text[index] == u8'>') {
-              tokens_.emplace_back(TokenType::RightArithmeticShift,
+              tokens.emplace_back(TokenType::RightArithmeticShift,
                                    make_ref(start, ++index));
               continue;
             } else {
-              tokens_.emplace_back(TokenType::RightShift, make_ref(start, index));
+              tokens.emplace_back(TokenType::RightShift, make_ref(start, index));
               continue;
             }
           }
         }
-        tokens_.emplace_back(TokenType::GreaterThan, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::GreaterThan, make_ref(start, start + 1));
         break;
       }
       case u8'<': {
@@ -309,80 +270,80 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         index++;
         if (index < text.length()) {
           if (text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::LessThanOrEqual, make_ref(start, ++index));
+            tokens.emplace_back(TokenType::LessThanOrEqual, make_ref(start, ++index));
             continue;
           } else if (text[index] == u8'<') {
             index++;
             if (index < text.length() && text[index] == u8'=') {
-              tokens_.emplace_back(TokenType::LeftShiftEqual, make_ref(start, ++index));
+              tokens.emplace_back(TokenType::LeftShiftEqual, make_ref(start, ++index));
               continue;
             } else if (index < text.length() && text[index] == u8'<') {
-              tokens_.emplace_back(TokenType::LeftArithmeticShift,
+              tokens.emplace_back(TokenType::LeftArithmeticShift,
                                    make_ref(start, ++index));
               continue;
             } else {
-              tokens_.emplace_back(TokenType::LeftShift, make_ref(start, index));
+              tokens.emplace_back(TokenType::LeftShift, make_ref(start, index));
               continue;
             }
           }
         }
-        tokens_.emplace_back(TokenType::LessThan, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::LessThan, make_ref(start, start + 1));
         break;
       }
       case u8'!': {
         auto start = index;
         index++;
         if (index < text.length() && text[index] == u8'=') {
-          tokens_.emplace_back(TokenType::NotEqual, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::NotEqual, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::Not, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Not, make_ref(start, start + 1));
         break;
       }
       case u8'&': {
         auto start = index;
         index++;
         if (index < text.length() && text[index] == u8'&') {
-          tokens_.emplace_back(TokenType::LogicalAnd, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::LogicalAnd, make_ref(start, ++index));
           continue;
         } else if (index < text.length() && text[index] == u8'=') {
-          tokens_.emplace_back(TokenType::AmpersandEqual, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::AmpersandEqual, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::Ampersand, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Ampersand, make_ref(start, start + 1));
         break;
       }
       case u8'|': {
         auto start = index;
         index++;
         if (index < text.length() && text[index] == u8'|') {
-          tokens_.emplace_back(TokenType::LogicalOr, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::LogicalOr, make_ref(start, ++index));
           continue;
         } else if (index < text.length() && text[index] == u8'=') {
-          tokens_.emplace_back(TokenType::PipeEqual, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::PipeEqual, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::Pipe, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Pipe, make_ref(start, start + 1));
         break;
       }
       case u8'^': {
         auto start = index;
         index++;
         if (index < text.length() && text[index] == u8'=') {
-          tokens_.emplace_back(TokenType::CaretEqual, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::CaretEqual, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::Caret, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Caret, make_ref(start, start + 1));
         break;
       }
       case u8'%': {
         auto start = index;
         index++;
         if (index < text.length() && text[index] == u8'=') {
-          tokens_.emplace_back(TokenType::PercentSignEqual, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::PercentSignEqual, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::PercentSign, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::PercentSign, make_ref(start, start + 1));
         break;
       }
       case u8'?': {
@@ -391,17 +352,17 @@ bool Lexer::Parse(const base::StringRefU8 text) {
         if (index < text.length() && text[index] == u8'?') {
           index++;
           if (index < text.length() && text[index] == u8'=') {
-            tokens_.emplace_back(TokenType::NullishCoalescingEqual,
+            tokens.emplace_back(TokenType::NullishCoalescingEqual,
                                  make_ref(start, ++index));
             continue;
           }
-          tokens_.emplace_back(TokenType::NullishCoalescing, make_ref(start, index));
+          tokens.emplace_back(TokenType::NullishCoalescing, make_ref(start, index));
           continue;
         } else if (index < text.length() && text[index] == u8'.') {
-          tokens_.emplace_back(TokenType::QuestionDot, make_ref(start, ++index));
+          tokens.emplace_back(TokenType::QuestionDot, make_ref(start, ++index));
           continue;
         }
-        tokens_.emplace_back(TokenType::QuestionMark, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::QuestionMark, make_ref(start, start + 1));
         break;
       }
       case u8'.': {
@@ -411,18 +372,18 @@ bool Lexer::Parse(const base::StringRefU8 text) {
           if (text[index] == u8'.') {
             index++;
             if (index < text.length() && text[index] == u8'.') {
-              tokens_.emplace_back(TokenType::Ellipsis, make_ref(start, ++index));
+              tokens.emplace_back(TokenType::Ellipsis, make_ref(start, ++index));
               continue;
             }
-            tokens_.emplace_back(TokenType::Range, make_ref(start, index));
+            tokens.emplace_back(TokenType::Range, make_ref(start, index));
             continue;
           } else if (IsAsciiDigit(text[index])) {
             // Leading dot followed by digits
-            LexNumber(tokens_, text, index, start, true);  // don't return!
+            LexNumber(tokens, text, index, start, true);  // don't return!
             continue;         
           }
         }
-        tokens_.emplace_back(TokenType::Dot, make_ref(start, start + 1));
+        tokens.emplace_back(TokenType::Dot, make_ref(start, start + 1));
         break;
       }
       case u8'`': {
@@ -463,18 +424,18 @@ bool Lexer::Parse(const base::StringRefU8 text) {
           return false;
         }
 
-        tokens_.emplace_back(TokenType::TemplateLiteral, make_ref(start, index + 1));
+        tokens.emplace_back(TokenType::TemplateLiteral, make_ref(start, index + 1));
         index++;  // Skip closing backtick
         break;
       }
       default: {
         if (IsAsciiDigit(c)) {
-          LexNumber(tokens_, text, index, index, false);
+          LexNumber(tokens, text, index, index, false);
         } else if (c == u8'_' || IsAsciiAlphabetic(c)) {
-          LexIdentifier(tokens_, text, index);
+          LexIdentifier(tokens, text, index);
         } else {
           BASE_LOGE(kLogTag, "Unrecognized character: {}", static_cast<char>(c));
-          tokens_.emplace_back(TokenType::Invalid, make_ref(index, index + 1));
+          tokens.emplace_back(TokenType::Invalid, make_ref(index, index + 1));
           index++;
         }
         break;
@@ -482,7 +443,7 @@ bool Lexer::Parse(const base::StringRefU8 text) {
     }  // end switch
   }    // end while
 
-  tokens_.emplace_back(TokenType::Eof, make_ref(index, index));
+  tokens.emplace_back(TokenType::Eof, make_ref(index, index));
   return true;
 }
 
@@ -705,6 +666,45 @@ bool LexNumber(TokenList& tokens,
   // NOTE: tokens contain the suffix within their value
   tokens.emplace_back(Token(final_type, make_ref(start, index)));
   return true;
+}
+
+void LexQuotedString(TokenList& tokens,
+                     const base::StringRefU8 text,
+                     mem_size& index,
+                     TokenType string_type,
+                     mem_size opener_len) {
+  auto make_ref = [text](mem_size start, mem_size end) {
+    return base::StringRefU8(&text.data()[start], end - start);
+  };
+
+  const mem_size content_start = index + opener_len;
+  mem_size current_pos = content_start;
+  bool escaped = false;
+
+  while (current_pos < text.length()) {
+    if (text[current_pos] == u8'\\' && !escaped) {
+      escaped = true;
+    } else if (text[current_pos] == u8'"' && !escaped) {
+      // Found the end of the string
+      tokens.emplace_back(string_type, make_ref(content_start, current_pos));
+      index = current_pos + 1;  // Move index past the closing quote
+      return;
+    } else if (text[current_pos] == u8'\r' || text[current_pos] == u8'\n') {
+      BASE_LOGE(kLogTag, "Unterminated string literal (newline)");
+      // Create a token for the unterminated part for better error reporting
+      tokens.emplace_back(TokenType::Invalid, make_ref(content_start, current_pos));
+      index = current_pos;
+      return;
+    } else {
+      escaped = false;
+    }
+    current_pos++;
+  }
+
+  // If we exit the loop, the string was not terminated
+  BASE_LOGE(kLogTag, "Unterminated string literal (EOF)");
+  tokens.emplace_back(TokenType::Invalid, make_ref(content_start, current_pos));
+  index = current_pos;
 }
 
 }  // namespace aki

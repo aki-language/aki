@@ -16,10 +16,9 @@ static void DumpTokens(const base::Vector<aki::Token>& tok) {
 }
 
 TEST(Lexer, TestSimpleTokens) {
-  aki::Lexer lex;
-  lex.Parse(u8";:+++=");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8";:+++=");
   ASSERT_EQ(tokens.size(), 5);
 
   EXPECT_EQ(tokens[0].type, TokenType::Semicolon);
@@ -36,10 +35,9 @@ TEST(Lexer, TestSimpleTokens) {
 }
 
 TEST(Lexer, ParseNumberDecl) {
-  aki::Lexer lex;
-  lex.Parse(u8"f32 floating_point = 1.2345;");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"f32 floating_point = 1.2345;");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   EXPECT_EQ(tokens.size(), 6);
 
   EXPECT_EQ(tokens[0].type, TokenType::Identifier);
@@ -62,10 +60,9 @@ TEST(Lexer, ParseNumberDecl) {
 }
 
 TEST(Lexer, OperatorTokens) {
-  aki::Lexer lex;
-  lex.Parse(u8"= == + ++ += - -- -= * *=");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"= == + ++ += - -- -= * *=");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 11);
 
   // Validate each operator token
@@ -82,10 +79,9 @@ TEST(Lexer, OperatorTokens) {
 }
 
 TEST(Lexer, NumberVariety) {
-  aki::Lexer lex;
-  lex.Parse(u8"123 123.456 0x12ab 0b1010 0o77 123u32 456 f32");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"123 123.456 0x12ab 0b1010 0o77 123u32 456 f32");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 9);
 
@@ -116,11 +112,11 @@ TEST(Lexer, NumberVariety) {
 }
 
 TEST(Lexer, StringLiterals) {
-  aki::Lexer lex;
-  lex.Parse(
+  aki::TokenList tokens;
+  aki::LexString(
+      tokens,
       u8"\"plain_string\" u8\"utf8_string\" u16\"utf16_string\" u32\"utf32_string\"");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   //DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 5);
 
@@ -142,10 +138,9 @@ TEST(Lexer, StringLiterals) {
 }
 
 TEST(Lexer, Comments) {
-  aki::Lexer lex;
-  lex.Parse(u8"// Line comment\n/* Block comment */");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"// Line comment\n/* Block comment */");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 3);  // Including Eol
 
@@ -160,10 +155,9 @@ TEST(Lexer, Comments) {
 }
 
 TEST(Lexer, InvalidOrEdgeTokens) {
-  aki::Lexer lex;
-  lex.Parse(u8"123abc .123 ~= $# notinvalid");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"123abc .123 ~= $# notinvalid");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   //DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 9);
 
@@ -191,10 +185,9 @@ TEST(Lexer, InvalidOrEdgeTokens) {
 }
 
 TEST(Lexer, ColonColonAndFatArrow) {
-  aki::Lexer lex;
-  lex.Parse(u8"::=>");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"::=>");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   EXPECT_EQ(tokens.size(), 3);
 
   EXPECT_EQ(tokens[0].type, TokenType::ColonColon);
@@ -205,10 +198,9 @@ TEST(Lexer, ColonColonAndFatArrow) {
 }
 
 TEST(Lexer, NumberWithUnderscores) {
-  aki::Lexer lex;
-  lex.Parse(u8"1_234_567 0b1010_1010 0x12_ab_CD 0o7_77 1_234.56_78");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"1_234_567 0b1010_1010 0x12_ab_CD 0o7_77 1_234.56_78");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 6);
 
   EXPECT_EQ(tokens[0].type, TokenType::IntegerNumber);
@@ -228,10 +220,9 @@ TEST(Lexer, NumberWithUnderscores) {
 }
 
 TEST(Lexer, ShiftOperators) {
-  aki::Lexer lex;
-  lex.Parse(u8"<< >> <<= >>= >>> <<<");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"<< >> <<= >>= >>> <<<");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 7);
 
@@ -255,10 +246,9 @@ TEST(Lexer, ShiftOperators) {
 }
 
 TEST(Lexer, DotOperators) {
-  aki::Lexer lex;
-  lex.Parse(u8". .. ...");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8". .. ...");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 4);
 
   EXPECT_EQ(tokens[0].type, TokenType::Dot);
@@ -272,10 +262,9 @@ TEST(Lexer, DotOperators) {
 }
 
 TEST(Lexer, ComparisonsAndEquality) {
-  aki::Lexer lex;
-  lex.Parse(u8"< <= > >= == != !");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"< <= > >= == != !");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   ASSERT_EQ(tokens.size(), 8);
 
   EXPECT_EQ(tokens[0].type, TokenType::LessThan);
@@ -301,10 +290,9 @@ TEST(Lexer, ComparisonsAndEquality) {
 }
 
 TEST(Lexer, AssignmentOperators) {
-  aki::Lexer lex;
-  lex.Parse(u8"= += -= *= /= %= &= |= ^= ~=");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"= += -= *= /= %= &= |= ^= ~=");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 12);
 
@@ -340,10 +328,9 @@ TEST(Lexer, AssignmentOperators) {
 }
 
 TEST(Lexer, QuestionMarkOperators) {
-  aki::Lexer lex;
-  lex.Parse(u8"? ?? ?= ??= ?==");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"? ?? ?= ??= ?==");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 8);
 
@@ -370,10 +357,9 @@ TEST(Lexer, QuestionMarkOperators) {
 }
 
 TEST(Lexer, MixedSymbolicIdentifiers) {
-  aki::Lexer lex;
-  lex.Parse(u8"_start _var123 $special @at at@ @");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"_start _var123 $special @at at@ @");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   ASSERT_EQ(tokens.size(), 9);
 
@@ -403,20 +389,18 @@ TEST(Lexer, MixedSymbolicIdentifiers) {
 }
 
 TEST(Lexer, EmptyInput) {
-  aki::Lexer lex;
-  lex.Parse(u8"");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   EXPECT_EQ(tokens.size(), 1);
   EXPECT_EQ(tokens[0].type, TokenType::Eof);
 }
 
 TEST(Lexer, OnlyWhitespace) {
-  aki::Lexer lex;
-  lex.Parse(u8"   \t\r\n\t");
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"   \t\r\n\t");
 
-  base::Vector<aki::Token>& tokens = lex.tokens();
   // DumpTokens(tokens);
   //  Should contain only EOL from newline
   ASSERT_EQ(tokens.size(), 2);
@@ -425,9 +409,9 @@ TEST(Lexer, OnlyWhitespace) {
 }
 
 TEST(Lexer, UnterminatedString) {
-  aki::Lexer lex;
-  lex.Parse(u8"\"unterminated string");
-  auto& tokens = lex.tokens();
+  aki::TokenList tokens;
+  aki::LexString(tokens, u8"\"unterminated string");
+
   EXPECT_EQ(tokens.size(), 2);
   EXPECT_EQ(tokens[0].type, TokenType::Invalid);
   EXPECT_EQ(tokens[1].type, TokenType::Eof);
