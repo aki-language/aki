@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Vincent Hengel.
+// Copyright (C) Vincent Hengel 2023-2025
 
 #include "lexer.h"
 #include <base/logging.h>  // for fmt

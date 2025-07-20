@@ -1,4 +1,153 @@
-// Copyright (C) The Fusion Authors/Vincent Hengel 2023
+﻿// Copyright (C) Vincent Hengel 2023-2025
+
+#include "parser.h"
+
+namespace aki {
+namespace {
+#define TRY_PARSE(var, expr) \
+  do {                       \
+    auto result = (expr);    \
+    if (!result.success) {   \
+      return result;         \
+    }                        \
+    var = result.value;      \
+    state = result.state;    \
+  } while (0)
+
+// A version of TRY_PARSE for when we don't care about the returned value.
+#define TRY_PARSE_VOID(expr)                          \
+  do {                                                \
+    auto result = (expr);                             \
+    if (!result.success) {                            \
+      return {{}, result.state, result.error, false}; \
+    }                                                 \
+    state = result.state;                             \
+  } while (0)
+
+inline bool IsAtEnd(const ParseState& state) {
+  return state.index >= state.tokens.size();
+}
+
+inline const Token* peek(const ParseState& state, size_t offset = 0) {
+  if (state.index + offset >= state.tokens.size()) {
+    return nullptr;
+  }
+  return &state.tokens[state.index + offset];
+}
+
+inline void advance(ParseState& state, size_t count = 1) {
+  state.index += count;
+}
+
+// Skips any non-functional tokens like comments, EOLs, and semicolons.
+void ConsumeTrivia(ParseState& state) {
+  while (const Token* t = peek(state)) {
+    switch (t->type) {
+      case TokenType::LineComment:
+      case TokenType::BlockComment:
+      case TokenType::Eol:
+      case TokenType::Semicolon:
+        // These tokens are considered trivia and can be skipped.
+        advance(state);
+        continue;  // Skip to the next token.
+      default:     // Stop if we hit a non-trivia token.
+        return;
+    }
+  }
+}  // namespace
+}  // namespace
+
+ParseError ParseTranslationUnit(const TokenList& tokens, TranslationUnit& tu) {
+  // NOTE(Vince): this state exists on a per translation unit basis. therefore it
+  // has no knowledge of the other translation units (functions, variables etc
+  // defined within other aki source files).
+  ParseState ps{tokens, tu, 0};
+  ps.ast.ActivateScope(u8"___AKIGLOBAL__", TU::Scope::Type::Namespace);
+
+  // Do it until we can't anymore •͡˘㇁•͡˘
+  while (!IsAtEnd(ps)) {
+    // Consume any whitespace, newlines, or comments between declarations.
+    ConsumeTrivia(ps);
+
+    if (IsAtEnd(ps)) {
+      break;  // Reached end of file after trivia.
+    }
+
+#if 0
+       // Attempt to parse a top-level declaration.
+    auto result = ParseTopLevelDeclaration(state);
+    if (result.success) {
+      // If we succeeded, we update our state to the new state returned
+      // by the parsing function and continue the loop.
+      state = result.state;
+    } else {
+      // If no top-level declaration rule matched, it's a syntax error.
+      // We log it and stop parsing.
+      const Token* error_token = peek(state);
+      BASE_LOGE("Parser", "Failed to parse top-level declaration. Error: %d at token: %s",
+                static_cast<int>(result.error),
+                error_token ? (char*)base::MakeStringCopy(error_token->value).c_str()
+                            : "<EOF>");
+      return result.error;
+    }
+#endif
+    // If we exit the loop cleanly, it means we've parsed the whole file.
+    return ParseError::Success;
+  }
+}
+
+}  // namespace aki
+
+#if 0
+
+ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(ParseState state) {
+
+  return ParseResult<ParsedFunctionDeclRef>(ParseError::NImpld, state);
+}
+
+
+// This is the main dispatcher for any top-level declaration.
+// It tries to parse different constructs (functions, variables, etc.)
+// in order.
+ParseResult<void> ParseTopLevelDeclaration(ParseState state) {
+  const Token* t = peek(state);
+  if (!t) {
+    return ParseResult<void>::Failure(ParseError::UnexpectedEnding, state);
+  }
+
+  // Top-level declarations must be character sequences (keywords)
+  if (t->type != TokenType::CharacterSequence) {
+    return ParseResult<void>::Failure(ParseError::UnexpectedToken, state);
+  }
+
+  KeywordType kwd = MatchKeyword(t->value);
+  switch (kwd) {
+    case KeywordType::Func: {
+      ParsedFunctionDeclRef handle;
+      TRY_PARSE(handle, ParseFunctionDeclaration(state));
+      state.ast.current_scope()->functions.emplace_back(handle);
+      break;
+    }
+    case KeywordType::Let: {
+      ParsedVariableDeclRef handle;
+      TRY_PARSE(handle, ParseVariableDeclaration(state, true));
+      state.ast.current_scope()->AddObject(TU::ObjectType::Variable, handle);
+      break;
+    }
+    case KeywordType::Var: {
+      ParsedVariableDeclRef handle;
+      TRY_PARSE(handle, ParseVariableDeclaration(state, false));
+      state.ast.current_scope()->AddObject(TU::ObjectType::Variable, handle);
+      break;
+    }
+    
+    default:
+      return Result<void>::Failure(ParseError::UnexpectedToken, state);
+  }
+
+  return Result<void>::Success({}, state);
+}
+#endif
 
 #if 0
 
@@ -55,9 +204,6 @@ static void Utf8ToLowercase(base::StringU8* str) {
 
 constexpr char kTag[] = "langparser";
 
-// NOTE(Vince): this class exists on a per translation unit basis. therefore it
-// has no knowledge of the other translation units (functions, variables etc
-// defined within other aki source files).
 Parser::Parser(base::Vector<Token> tokens) : tokens_(base::move(tokens)) {}
 
 void Parser::ParseTokens() {

@@ -1,4 +1,4 @@
-// Copyright (C) The Fusion Authors/Vincent Hengel 2023
+// Copyright (C) Vincent Hengel 2023-2025
 #pragma once
 
 #include <base/arch.h>

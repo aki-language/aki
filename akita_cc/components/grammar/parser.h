@@ -1,7 +1,5 @@
-// Copyright (C) The Fusion Authors/Vincent Hengel 2023
+// Copyright (C) Vincent Hengel 2023-2025
 #pragma once
-
-#if 0
 
 #include <base/expected.h>
 #include <base/optional.h>
@@ -10,6 +8,9 @@
 #include "syntax.h"
 #include "token.h"
 #include "translation_unit.h"
+#include "lexer.h"
+
+#include "api.h"
 
 namespace aki {
 enum class ParseError {
@@ -41,6 +42,8 @@ enum class ParseError {
   // Variables
   Missing,
   InvalidInbuiltType,
+
+  NImpld,
 };
 
 template <typename T = obj_handle>
@@ -55,8 +58,8 @@ struct ParseResult {
       : status(ParseError::Unknown),
         maybe_handle((handle_type)TranslationUnit::invalid_handle) {}
 
-  ParseResult(const ParseError status, handle_type maybe_handle = (handle_type)
-                                           TranslationUnit::invalid_handle)
+  ParseResult(const ParseError status,
+              handle_type maybe_handle = (handle_type)TranslationUnit::invalid_handle)
       : status(status), maybe_handle(maybe_handle) {}
 
   ParseResult(handle_type sure_handle)
@@ -68,6 +71,22 @@ struct ParseResult {
   ParseResult(const ParseResult& other)
       : status(other.status), maybe_handle(other.maybe_handle) {}
 };
+
+struct ParseState {
+  const base::Vector<Token>& tokens;
+  TranslationUnit& ast;  // The AST we are building (a mutable reference)
+  size_t index = 0;
+};
+
+AKI_GRAMMAR_API ParseError ParseTranslationUnit(const aki::TokenList& tokens,
+                                               TranslationUnit& tu);
+}
+
+
+#if 0
+
+namespace aki {
+
 
 // NOTE(Vince): The parser is responsible for taking a stream of tokens and
 // turning them into syntax objects that can be used by codegen.
