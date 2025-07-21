@@ -357,11 +357,8 @@ ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
   switch (kwd) {
     case KeywordType::Func: {
       ParsedFunctionDeclRef handle;
-      // The macro updates current_state on success. We then immediately return that
-      // success.
       TRY_INTO_VOID(handle, ParseFunctionDeclaration(tl, ast, current_state));
       cs->functions.emplace_back(handle);
-      // BUG FIX: Return immediately on success, propagating the new state.
       return ParseResult<void>::Ok(current_state);
     }
     case KeywordType::Let: {
@@ -369,7 +366,6 @@ ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
       TRY_INTO_VOID(handle,
                     ParseVariableDeclaration(tl, ast, current_state, /*is_const=*/true));
       cs->AddObject(TU::ObjectType::Variable, handle);
-      // BUG FIX: Return immediately on success, propagating the new state.
       return ParseResult<void>::Ok(current_state);
     }
     case KeywordType::Var: {
@@ -377,7 +373,6 @@ ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
       TRY_INTO_VOID(handle,
                     ParseVariableDeclaration(tl, ast, current_state, /*is_const=*/false));
       cs->AddObject(TU::ObjectType::Variable, handle);
-      // BUG FIX: Return immediately on success, propagating the new state.
       return ParseResult<void>::Ok(current_state);
     }
     default:

@@ -66,9 +66,9 @@ struct ParseResult {
   using value_type = T;
 
   bool success;
-  T value;                 // The parsed value (e.g., a handle) if successful
-  ParseError error;        // The error details if failed
-  ParseState next_state;   // The state of the parser AFTER this operation
+  T value;                // The parsed value (e.g., a handle) if successful
+  ParseError error;       // The error details if failed
+  ParseState next_state;  // The state of the parser AFTER this operation
 
   static ParseResult<T> Ok(T val, ParseState state) {
     return {true, std::move(val), {ParseErrorCode::Success, state.index}, state};
@@ -101,7 +101,6 @@ struct ParseResult<void> {
   operator bool() const { return success; }
 };
 
-
 struct StateResult {
   ParseError err;
   mem_size update_idx;
@@ -115,11 +114,11 @@ AKI_GRAMMAR_API ParseResult<void> ConsumeToken(const TokenList& tl,
                                                ParseState state,
                                                TokenType expected_type);
 
-// Takes a TokenList produced by the lexer and builds our custom AST representation 
+// Takes a TokenList produced by the lexer and builds our custom AST representation
 AKI_GRAMMAR_API ParseError ParseTranslationUnit(const aki::TokenList& tokens,
                                                 TranslationUnit& tu);
 
 AKI_GRAMMAR_API ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
-                                           TranslationUnit& ast,
-                                           ParseState current_state);
+                                                           TranslationUnit& ast,
+                                                           ParseState current_state);
 }  // namespace aki

@@ -55,20 +55,23 @@ TEST_F(ParserTest, ParseVariableDecl_LetWithTypeAndInitializer) {
   tl.emplace_back(TokenType::IntegerNumber, u8"42");
 
   auto result = ParseTopLevelDeclaration(tl, *tu, {0});
-  EXPECT_FALSE(result.success);
- // EXPECT_EQ(result.next_state.index, 6);
+  EXPECT_TRUE(result.success);
+  EXPECT_EQ(result.next_state.index, 6);
 
-  //TranslationUnit::Scope* s = tu->current_scope();
+  // check if the object representation is valid
+  ASSERT_EQ(tu->all_variables.active_object_count(), 1);
+  const aki::ParsedVariableDecl* var = tu->all_variables.GetByArrayIndex(0);
+  EXPECT_EQ(var->name, u8"x");
+  EXPECT_TRUE(var->is_const); // let = const
+  EXPECT_EQ(var->linkage, Linkage::Internal);
+  EXPECT_EQ(var->visibility, Visibility::Private);
+  //EXPECT_EQ(var->type, tu->all_types.GetByArrayIndex(var->type_handle)->name);
 
   #if 0
-  ASSERT_EQ(tu->all_variables.(), 1);
-  const auto& var = tu->all_variables[0];
-  EXPECT_EQ(var.name, u8"x");
-  EXPECT_TRUE(var.is_const);
-  EXPECT_NE(var.type_handle, TranslationUnit::invalid_handle);
-  EXPECT_NE(var.expr_handle, TranslationUnit::invalid_handle);
+  EXPECT_NE(var->type_handle, TranslationUnit::invalid_handle);
+  EXPECT_NE(var->expr_handle, TranslationUnit::invalid_handle);
 
-  ASSERT_EQ(tu->all_types.items.size(), 1);
+  ASSERT_EQ(tu->all_types.active_object_count(), 1);
   EXPECT_EQ(tu->all_types[var.type_handle].name, u8"i32");
 
   ASSERT_EQ(tu->all_expressions.items.size(), 1);

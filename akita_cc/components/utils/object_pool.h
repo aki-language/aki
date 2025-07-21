@@ -80,7 +80,18 @@ struct ObjectPool final {
     if (!IsValid(handle)) {
       return nullptr;
     }
-    return &(*slots_[handle.index].object);
+    return &(*slots_[handle.index.value].object);
+  }
+
+  [[nodiscard]] const T* GetByArrayIndex(mem_size idx) const {
+    if (idx >= slots_.size()) {
+      return nullptr;
+    }
+    const Slot& slot = slots_[idx];
+    if (!slot.object.has_value()) {
+      return nullptr;
+    }
+    return &(*slot.object);
   }
 
   // Checks if a handle currently points to a live object.
