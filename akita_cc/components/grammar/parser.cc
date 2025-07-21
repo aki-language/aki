@@ -2,151 +2,208 @@
 
 #include "parser.h"
 
+// Note(Vince):
+// The aki parser deviates from the classical approach of building a pointer-based
+// Abstract Syntax Tree (AST). Instead, it employs a data-oriented design
+// inspired by Entity-Component-System (ECS) architectures, which is common in
+// high-performance applications like game engines.
+//
+// The core idea is to store all AST nodes of the same type together in
+// contiguous arrays (a "struct-of-arrays" layout). For example, there's one
+// array for all function declarations, another for all variable declarations, etc.
+//
+// Nodes do not hold raw pointers to each other. Instead, they store type-safe,
+// ID-based handles. A handle is essentially an index into one of the typed
+// arrays.
+//
+// Key Advantages of this Approach:
+//
+// 1. Cache-Friendliness: Contiguous storage leads to excellent cache locality.
+//    Iterating over all nodes of a specific type (e.g., type-checking all
+//    functions) is extremely fast as the data is packed together in memory.
+//
+// 2. Stable References: ID-based handles are stable. They remain valid even if
+//    the underlying arrays are reallocated, which completely eliminates the
+//    dangling pointer problem common in traditional ASTs.
+//
+// 3. Resilience & Tombstoning: If a node becomes invalid (e.g., due to a
+//    semantic error), its ID can be marked as "dead" or "tombstoned". Any
+//    subsequent attempt to resolve this handle will safely fail instead of
+//    accessing invalid memory.
+//
+// 4. Parallelism & Concurrency: The data layout is inherently friendly to
+//    parallel processing. Different compiler passes can operate on slices of
+//    the arrays concurrently with fewer data dependency hazards.
+//
+// 5. Simplified Serialization: An ID-based AST is trivial to serialize to
+//    disk and load back, as there are no pointers to "swizzle" (i.e., fix up
+//    after loading into a new memory space).
+//
+
+// In regards to this parsing setup, we use mostly a functional approach. If the function
+// parsing succeeds, we "commit" a new state index pointer, if not we "revert"
+
 namespace aki {
 namespace {
-#define TRY_PARSE(var, expr) \
-  do {                       \
-    auto result = (expr);    \
-    if (!result.success) {   \
-      return result;         \
-    }                        \
-    var = result.value;      \
-    state = result.state;    \
+constexpr char kLogTag[] = "langparser";
+
+// Tries to parse. On success, it updates 'handle' with the value and 'current_state' with
+// the new state. On failure, it immediately returns the failed result from the current
+// function.
+// For use in a function that returns ParseResult<T> where T is NOT void.
+#define TRY_WITH_VALUE(handle, expr)                                             \
+  do {                                                                           \
+    auto result = (expr);                                                        \
+    if (!result.success) {                                                       \
+      /* Construct a failure result of the *same type* as the parent function */ \
+      return {false, {}, result.error, result.next_state};                       \
+    }                                                                            \
+    (handle) = result.value;                                                     \
+    current_state = result.next_state;                                           \
   } while (0)
 
-// A version of TRY_PARSE for when we don't care about the returned value.
-#define TRY_PARSE_VOID(expr)                          \
-  do {                                                \
-    auto result = (expr);                             \
-    if (!result.success) {                            \
-      return {{}, result.state, result.error, false}; \
-    }                                                 \
-    state = result.state;                             \
+// For use in a function that returns ParseResult<void>.
+#define TRY_INTO_VOID(handle, expr)                              \
+  do {                                                           \
+    auto result = (expr);                                        \
+    if (!result.success) {                                       \
+      /* Construct a failure result of type ParseResult<void> */ \
+      return {false, result.error, result.next_state};           \
+    }                                                            \
+    (handle) = result.value;                                     \
+    current_state = result.next_state;                           \
   } while (0)
 
-inline bool IsAtEnd(const ParseState& state) {
-  return state.index >= state.tokens.size();
+#define TRY_VOID_INTO_VOID(expr)                       \
+  do {                                                 \
+    auto result = (expr);                              \
+    if (!result.success) {                             \
+      return {false, result.error, result.next_state}; \
+    }                                                  \
+    current_state = result.next_state;                 \
+  } while (0)
+
+inline bool IsAtEnd(const TokenList& tl, const ParseState& state) {
+  return state.index >= tl.size();
 }
 
-inline const Token* peek(const ParseState& state, size_t offset = 0) {
-  if (state.index + offset >= state.tokens.size()) {
+inline const Token* Peek(const TokenList& tl, ParseState state, size_t offset = 0) {
+  if (state.index + offset >= tl.size())
     return nullptr;
-  }
-  return &state.tokens[state.index + offset];
+  return &tl[state.index + offset];
 }
 
-inline void advance(ParseState& state, size_t count = 1) {
+
+inline void BumpIndex(ParseState& state, size_t count = 1) {
   state.index += count;
 }
 
-// Skips any non-functional tokens like comments, EOLs, and semicolons.
-void ConsumeTrivia(ParseState& state) {
-  while (const Token* t = peek(state)) {
+ParseState ConsumeTrivia(const TokenList& tl, ParseState state) {
+  while (const Token* t = Peek(tl, state)) {
     switch (t->type) {
       case TokenType::LineComment:
       case TokenType::BlockComment:
       case TokenType::Eol:
       case TokenType::Semicolon:
-        // These tokens are considered trivia and can be skipped.
-        advance(state);
-        continue;  // Skip to the next token.
-      default:     // Stop if we hit a non-trivia token.
-        return;
+        state.index++;
+        continue;
+      default:
+        return state;
     }
   }
+  return state;
+}
 }  // namespace
-}  // namespace
+
+ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(const TokenList& tl,
+                                                            TranslationUnit& ast,
+                                                            ParseState current_state) {
+  const Token* t = Peek(tl, current_state);
+  if (!t || t->type != TokenType::Identifier ||
+      MatchKeyword(t->value) != KeywordType::Func) {
+    return ParseResult<ParsedFunctionDeclRef>::Err(ParseErrorCode::ExpectedKeywordFunc,
+                                                   current_state);
+  }
+  // Advance state for the keyword
+  current_state.index++;
+
+  t = Peek(tl, current_state);
+  if (!t || t->type != TokenType::Identifier) {
+
+  }
+
+
+  return ParseResult<ParsedFunctionDeclRef>::Err(ParseErrorCode::ExpectedKeywordFunc,
+                                                 current_state);
+}
+
+// This is the main dispatcher for any top-level declaration.
+// It tries to parse different constructs (functions, variables, etc.)
+// in order.
+ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
+                                           TranslationUnit& ast,
+                                           ParseState current_state) {
+  const Token* t = Peek(tl, current_state);
+  if (!t) {
+    // End of file is not an error here. It's just nothing to parse.
+    // Returning success with the same state is correct.
+    return ParseResult<void>::Ok(current_state);
+  }
+
+  if (t->type != TokenType::Identifier) {
+    return ParseResult<void>::Err(ParseErrorCode::UnexpectedToken, current_state);
+  }
+
+  KeywordType kwd = MatchKeyword(t->value);
+  TranslationUnit::Scope* cs = ast.current_scope();
+
+  switch (kwd) {
+    case KeywordType::Func: {
+      ParsedFunctionDeclRef handle;
+      // The TRY macro will handle state propagation.
+      // It calls the function with the *current* state. On success,
+      // it updates our local `current_state` and `handle`. On failure, it returns.
+      TRY_INTO_VOID(handle, ParseFunctionDeclaration(tl, ast, current_state));
+      cs->functions.emplace_back(handle);
+      break;
+    }
+    // ... other cases
+    default:
+      return ParseResult<void>::Err(ParseErrorCode::UnknownTopLevelDeclaration,
+                                    current_state);
+  }
+
+  // If we get here, one of the cases succeeded and TRY updated our state.
+  // So we return a void success with the new, advanced state.
+  return ParseResult<void>::Ok(current_state);
+}
 
 ParseError ParseTranslationUnit(const TokenList& tokens, TranslationUnit& tu) {
-  // NOTE(Vince): this state exists on a per translation unit basis. therefore it
-  // has no knowledge of the other translation units (functions, variables etc
-  // defined within other aki source files).
-  ParseState ps{tokens, tu, 0};
-  ps.ast.ActivateScope(u8"___AKIGLOBAL__", TU::Scope::Type::Namespace);
+  ParseState current_state = {0};
+  tu.PushScope(u8"global", TU::Scope::Type::Namespace);
 
-  // Do it until we can't anymore •͡˘㇁•͡˘
-  while (!IsAtEnd(ps)) {
-    // Consume any whitespace, newlines, or comments between declarations.
-    ConsumeTrivia(ps);
+  while (current_state.index < tokens.size()) {
+    ParseState state_before_trivia = current_state;
+    current_state = ConsumeTrivia(tokens, current_state);
 
-    if (IsAtEnd(ps)) {
-      break;  // Reached end of file after trivia.
+    if (current_state.index >= tokens.size()) {
+      break;
     }
-
-#if 0
-       // Attempt to parse a top-level declaration.
-    auto result = ParseTopLevelDeclaration(state);
-    if (result.success) {
-      // If we succeeded, we update our state to the new state returned
-      // by the parsing function and continue the loop.
-      state = result.state;
-    } else {
-      // If no top-level declaration rule matched, it's a syntax error.
-      // We log it and stop parsing.
-      const Token* error_token = peek(state);
-      BASE_LOGE("Parser", "Failed to parse top-level declaration. Error: %d at token: %s",
-                static_cast<int>(result.error),
-                error_token ? (char*)base::MakeStringCopy(error_token->value).c_str()
-                            : "<EOF>");
+    auto result = ParseTopLevelDeclaration(tokens, tu, current_state);
+    if (!result) {
+      // A real error occurred. Log it and stop.
+      const Token& bad_token = tokens[result.error.token_index];
+      // TBD: ... logging ...
       return result.error;
     }
-#endif
-    // If we exit the loop cleanly, it means we've parsed the whole file.
-    return ParseError::Success;
   }
+  return ParseError{ParseErrorCode::Success, current_state.index};
 }
 
 }  // namespace aki
 
 #if 0
 
-ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(ParseState state) {
-
-  return ParseResult<ParsedFunctionDeclRef>(ParseError::NImpld, state);
-}
-
-
-// This is the main dispatcher for any top-level declaration.
-// It tries to parse different constructs (functions, variables, etc.)
-// in order.
-ParseResult<void> ParseTopLevelDeclaration(ParseState state) {
-  const Token* t = peek(state);
-  if (!t) {
-    return ParseResult<void>::Failure(ParseError::UnexpectedEnding, state);
-  }
-
-  // Top-level declarations must be character sequences (keywords)
-  if (t->type != TokenType::CharacterSequence) {
-    return ParseResult<void>::Failure(ParseError::UnexpectedToken, state);
-  }
-
-  KeywordType kwd = MatchKeyword(t->value);
-  switch (kwd) {
-    case KeywordType::Func: {
-      ParsedFunctionDeclRef handle;
-      TRY_PARSE(handle, ParseFunctionDeclaration(state));
-      state.ast.current_scope()->functions.emplace_back(handle);
-      break;
-    }
-    case KeywordType::Let: {
-      ParsedVariableDeclRef handle;
-      TRY_PARSE(handle, ParseVariableDeclaration(state, true));
-      state.ast.current_scope()->AddObject(TU::ObjectType::Variable, handle);
-      break;
-    }
-    case KeywordType::Var: {
-      ParsedVariableDeclRef handle;
-      TRY_PARSE(handle, ParseVariableDeclaration(state, false));
-      state.ast.current_scope()->AddObject(TU::ObjectType::Variable, handle);
-      break;
-    }
-    
-    default:
-      return Result<void>::Failure(ParseError::UnexpectedToken, state);
-  }
-
-  return Result<void>::Success({}, state);
-}
 #endif
 
 #if 0
@@ -201,8 +258,6 @@ static void Utf8ToLowercase(base::StringU8* str) {
     }
   }
 }
-
-constexpr char kTag[] = "langparser";
 
 Parser::Parser(base::Vector<Token> tokens) : tokens_(base::move(tokens)) {}
 

@@ -49,8 +49,7 @@ struct TranslationUnit {
   struct Scope {
     enum class Type { Namespace, Function, Complex };
 
-    explicit Scope(const base::StringRefU8 name, const Type t)
-        : name(name), type(t) {}
+    explicit Scope(const base::StringRefU8 name, const Type t) : name(name), type(t) {}
 
     const base::StringRefU8 name;
     const Type type;
@@ -62,6 +61,11 @@ struct TranslationUnit {
     base::Vector<ParsedEnumDeclRef> enums;
     base::Vector<ParsedComplexDeclRef> complexes;
     base::Vector<ParsedStatementRef> statements;
+
+    bool all_empty() const {
+      return namespaces.empty() && functions.empty() && complexes.empty() &&
+             global_variables.empty() && imports.empty() && statements.empty();
+    }
 
     struct BigHandle {
       const ObjectType type;
@@ -122,7 +126,7 @@ struct TranslationUnit {
 
   auto& all_scopes() { return scopes_storage; }
 
-  inline Scope& ActivateScope(const base::StringRefU8 name, Scope::Type type) {
+  inline Scope& PushScope(const base::StringRefU8 name, Scope::Type type) {
     Scope* ptr = nullptr;
     // Do we have a scope with the same name?
     ptr = FindAttachedScope(name);
@@ -137,15 +141,14 @@ struct TranslationUnit {
     }
 
     auto tmp_str = name.to_string();
-    BASE_LOGI(kLogTag, ">>> Activating scope: {}",
-              (const char*)tmp_str.c_str());
+    BASE_LOGI(kLogTag, ">>> Activating scope: {}", (const char*)tmp_str.c_str());
 
     scope_stack_.push(ptr);
     current_scope_ = ptr;
     return *ptr;
   }
 
-  inline void RestoreScope() {
+  inline void PopScope() {
     scope_stack_.pop();  // Remove the current scope
     if (!scope_stack_.empty()) {
       current_scope_ = scope_stack_.top();  // Set to the previous scope

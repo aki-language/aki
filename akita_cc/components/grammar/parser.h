@@ -13,11 +13,13 @@
 #include "api.h"
 
 namespace aki {
-enum class ParseError {
+enum class ParseErrorCode {
   Unknown = 0,
   Success,
+  UnknownTopLevelDeclaration,
   UnexpectedToken,
   UnexpectedEnding,
+  ExpectedKeywordFunc,
   UnknownKeyword,
   MissingBrace,
   MissingSemicolon,
@@ -46,110 +48,65 @@ enum class ParseError {
   NImpld,
 };
 
-template <typename T = obj_handle>
-struct ParseResult {
-  using handle_type = T;
+struct ParseError {
+  ParseErrorCode code;
+  mem_size token_index;  // Index of the token that caused the error
 
-  ParseError status;
-  handle_type maybe_handle;
-
-  // empty constructor
-  ParseResult()
-      : status(ParseError::Unknown),
-        maybe_handle((handle_type)TranslationUnit::invalid_handle) {}
-
-  ParseResult(const ParseError status,
-              handle_type maybe_handle = (handle_type)TranslationUnit::invalid_handle)
-      : status(status), maybe_handle(maybe_handle) {}
-
-  ParseResult(handle_type sure_handle)
-      : status(ParseError::Success), maybe_handle(sure_handle) {}
-
-  operator bool() const { return status == ParseError::Success; }
-
-  // copy constructor (we allow copying of parse results for now, but we might)
-  ParseResult(const ParseResult& other)
-      : status(other.status), maybe_handle(other.maybe_handle) {}
+  ParseError(ParseErrorCode code, mem_size index) : code(code), token_index(index) {}
 };
 
 struct ParseState {
-  const base::Vector<Token>& tokens;
-  TranslationUnit& ast;  // The AST we are building (a mutable reference)
-  size_t index = 0;
+  mem_size index = 0;  // Current position into the token array.
+};
+static_assert(sizeof(ParseState) == 8);
+
+template <typename T>
+struct ParseResult {
+  using value_type = T;
+
+  bool success;
+  T value;                 // The parsed value (e.g., a handle) if successful
+  ParseError error;        // The error details if failed
+  ParseState next_state;   // The state of the parser AFTER this operation
+
+  static ParseResult<T> Ok(T val, ParseState state) {
+    return {true, std::move(val), {ParseErrorCode::Success, state.index}, state};
+  }
+  static ParseResult<T> Err(ParseErrorCode code, ParseState original_state) {
+    return {false, {}, {code, original_state.index}, original_state};
+  }
+
+  // Allow checking in an if-statement
+  operator bool() const { return success; }
 };
 
+// Specialization for void, for functions that don't return a value but advance state.
+template <>
+struct ParseResult<void> {
+  bool success;
+  ParseError error;
+  ParseState next_state;
+
+  static ParseResult<void> Ok(ParseState state) {
+    return {true, {ParseErrorCode::Success, state.index}, state};
+  }
+
+  static ParseResult<void> Err(ParseErrorCode code, ParseState original_state) {
+    return {false, {code, original_state.index}, original_state};
+  }
+
+  operator bool() const { return success; }
+};
+
+
+struct StateResult {
+  ParseError err;
+  mem_size update_idx;
+
+  const bool has_changes(ParseState& ps) const { return update_idx != ps.index; }
+};
+
+// Takes a TokenList produced by the lexer and builds our custom AST representation 
 AKI_GRAMMAR_API ParseError ParseTranslationUnit(const aki::TokenList& tokens,
-                                               TranslationUnit& tu);
-}
-
-
-#if 0
-
-namespace aki {
-
-
-// NOTE(Vince): The parser is responsible for taking a stream of tokens and
-// turning them into syntax objects that can be used by codegen.
-class Parser {
- public:
-  Parser() = delete;
-  explicit Parser(base::Vector<Token>);
-  ~Parser() {};
-
-  void ParseTokens();
-
-  auto& translation_unit() { return objects_; }
-
- private:
-  // parse subs
-  ParseError ParseNamespace();
-  ParseError ParseVisiblityDecleration(bool is_public);
-  ParseResult<ParsedEnumDeclRef> ParseEnumDecleration();
-
-  // a complex can be either a class or struct in our nomenclature
-  ParseError ParseComplexDecleration(bool is_public);
-  ParseError ParseAliasDeclerationl();
-
-  ParseError ParseVariableDecleration(bool is_const);
-  ParseError ParseParameterDecleration(ParsedParameterDeclRef&);
-  ParseResult<ParsedFunctionDeclRef> ParseFunctionDecleration();
-
-  ParseResult<ParsedStatementRef> ParseReturnStatement();
-  ParseError ParseFunctionBody();
-
-  ParseError ParseImport();
-  ParseError ParseExternDecl();
-
-  ParseError ConsumeKeyword(const KeywordType, base::Optional<bool>);
-
-  ParseResult<ParsedStatementRef> ParseStatement2();
-  ParseResult<ParsedExpressionRef> ParseExpression(bool has_assignment,
-                                                   bool has_ptr);
-
-  ParseResult<ParsedOpRef> ParseOperand(const bool ptr);
-
-  base::StringRefU8 ParseCharacterSequence();
-  base::StringRefU8 ParseString();
-
-  // increments the current index, if the token is of the expected type.
-  bool CheckForToken(TokenType type);
-
-  ParseResult<ParsedTypeRef> ParseType();
-
- private:
-  KeywordType EatKeyword();
-
-  Token& Peek() const { return tokens_[current_index_]; }
-  bool IsAtEnd() const { return Peek().type == TokenType::Eof; }
-
-  // ref tracking into the original token array.
-  base::Vector<Token> tokens_;
-  mem_size current_index_{0};
-  // int current_{0};
-
-  // for now
-  aki::TranslationUnit objects_;
-};
+                                                TranslationUnit& tu);
 }  // namespace aki
-
-#endif
