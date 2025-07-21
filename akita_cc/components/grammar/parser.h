@@ -109,6 +109,12 @@ struct StateResult {
   const bool has_changes(ParseState& ps) const { return update_idx != ps.index; }
 };
 
+// Consumes the current token if it matches the expected type.
+// Returns a success result with the new state, or a failure result.
+AKI_GRAMMAR_API ParseResult<void> ConsumeToken(const TokenList& tl,
+                                               ParseState state,
+                                               TokenType expected_type);
+
 // Takes a TokenList produced by the lexer and builds our custom AST representation 
 AKI_GRAMMAR_API ParseError ParseTranslationUnit(const aki::TokenList& tokens,
                                                 TranslationUnit& tu);

@@ -17,15 +17,35 @@
 // have a greater chance to fit into the cpu cache lines.
 namespace aki {
 using obj_handle = u64;
+inline constexpr obj_handle kInvalidHandleValue = static_cast<obj_handle>(-1);
 
-#define AST_HANDLE(class_name)                              \
-  enum class class_name##Ref : obj_handle{};                \
-  inline obj_handle ToHandle(class_name##Ref ref) {         \
-    return static_cast<obj_handle>(ref);                    \
-  }                                                         \
-  inline bool operator==(obj_handle a, class_name##Ref b) { \
-    return a == ToHandle(b);                                \
-  }
+// i love c++
+// we still must do this though, in order to enforce a type safe and responsible handle
+// system.
+#define AST_HANDLE(HandleName)                                                 \
+  struct HandleName##Ref {                                                     \
+    obj_handle value;                                                          \
+    using subtype = obj_handle;                                                \
+                                                                               \
+    constexpr HandleName##Ref() : value(kInvalidHandleValue) {}                \
+    explicit constexpr HandleName##Ref(obj_handle v) : value(v) {}             \
+                                                                               \
+    [[nodiscard]] bool IsValid() const {                                       \
+      return value != kInvalidHandleValue;                                     \
+    }                                                                          \
+    friend bool operator==(const HandleName##Ref a, const HandleName##Ref b) { \
+      return a.value == b.value;                                               \
+    }                                                                          \
+    friend bool operator==(const HandleName##Ref a, obj_handle b) {            \
+      return a.value == b;                                                     \
+    }                                                                          \
+    friend bool operator==(obj_handle a, const HandleName##Ref& b) {           \
+      return a == b.value;                                                     \
+    }                                                                          \
+    friend bool operator!=(const HandleName##Ref a, const HandleName##Ref b) { \
+      return a.value != b.value;                                               \
+    }                                                                          \
+  };
 
 struct ScalarOrRef {
   union {
@@ -86,8 +106,7 @@ struct ParsedType {
   base::StringRefU8 data;
   u32 extra_data;
   // default empty constructor
-  ParsedType()
-      : type(Type::Empty), data(base::StringRefU8::null_ref()), extra_data(0) {}
+  ParsedType() : type(Type::Empty), data(base::StringRefU8::null_ref()), extra_data(0) {}
 
   ParsedType(const Type t, const base::StringRefU8 data, u32 extra_data = 0)
       : type(t), data(data), extra_data(extra_data) {}
@@ -115,8 +134,10 @@ struct ParsedEnumDecl {
 
   base::Vector<base::StringRefU8> member_values;
 
-  explicit ParsedEnumDecl(const base::StringRefU8 name, const Linkage linkage,
-                          const Visibility visibility, const Variant variant,
+  explicit ParsedEnumDecl(const base::StringRefU8 name,
+                          const Linkage linkage,
+                          const Visibility visibility,
+                          const Variant variant,
                           base::Vector<base::StringRefU8>&& refu8)
       : name(name),
         linkage(linkage),
@@ -243,10 +264,8 @@ struct ParsedExpression {
   // (in order of evaluation, left to right)
   base::Vector<ParsedOpRef> stack;
 
-  ParsedExpression(base::Vector<ParsedOpRef>&& stack)
-      : stack(base::move(stack)) {}
-  ParsedExpression(ParsedExpression&& other) noexcept
-      : stack(base::move(other.stack)) {}
+  ParsedExpression(base::Vector<ParsedOpRef>&& stack) : stack(base::move(stack)) {}
+  ParsedExpression(ParsedExpression&& other) noexcept : stack(base::move(other.stack)) {}
   ParsedExpression& operator=(ParsedExpression&& other) noexcept {
     if (this != &other) {
       stack = base::move(other.stack);
@@ -301,7 +320,8 @@ struct ParsedVariableDecl {
   ParsedTypeRef type;
   ParsedExpressionRef optional_assignment;
 
-  explicit ParsedVariableDecl(const base::StringRefU8 name, const bool is_const,
+  explicit ParsedVariableDecl(const base::StringRefU8 name,
+                              const bool is_const,
                               const Linkage linkage,
                               const Visibility visibility,
                               const ParsedTypeRef parsed_type,
@@ -330,8 +350,7 @@ struct ParsedParameterDecl {
   ParsedVariableDecl variable;
   bool requires_label;
 
-  explicit ParsedParameterDecl(ParsedVariableDecl&& variable,
-                               bool requires_label)
+  explicit ParsedParameterDecl(ParsedVariableDecl&& variable, bool requires_label)
       : variable(base::move(variable)), requires_label(requires_label) {}
 };
 AST_HANDLE(ParsedParameterDecl)
@@ -346,7 +365,8 @@ struct ParsedFunctionDecl {
 
   explicit ParsedFunctionDecl(const base::StringRefU8 name,
                               base::Vector<ParsedParameterDeclRef>& params,
-                              ParsedTypeRef return_type, Linkage linkage,
+                              ParsedTypeRef return_type,
+                              Linkage linkage,
                               Visibility visibility)
       : name(name),
         param_refs(base::move(params)),
@@ -374,7 +394,8 @@ struct ParsedComplexDecl {
   // base::Vector<ParsedVariableDecl> member_variables;
 
   explicit ParsedComplexDecl(const base::StringRefU8 name,
-                             const Linkage linkage, const Visibility visibility)
+                             const Linkage linkage,
+                             const Visibility visibility)
       : name(name), linkage(linkage), visibility(visibility) {}
 
   // Move constructor

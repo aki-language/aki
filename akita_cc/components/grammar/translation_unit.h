@@ -93,7 +93,7 @@ struct TranslationUnit {
         DEBUG_TRAP;  // WTF are you doing?!?
       }
 
-      tree.push_back({obj_type, static_cast<obj_handle>(ref)});
+      tree.push_back({obj_type, static_cast<obj_handle>(ref.value)});
     }
     // base::Vector<obj_handle> expressions;
   };
@@ -141,7 +141,7 @@ struct TranslationUnit {
     }
 
     auto tmp_str = name.to_string();
-    BASE_LOGI(kLogTag, ">>> Activating scope: {}", (const char*)tmp_str.c_str());
+    BASE_LOGI(kLogTag, ">>> Push scope: {}", (const char*)tmp_str.c_str());
 
     scope_stack_.push(ptr);
     current_scope_ = ptr;
@@ -149,14 +149,14 @@ struct TranslationUnit {
   }
 
   inline void PopScope() {
-    scope_stack_.pop();  // Remove the current scope
+    BASE_LOGI(kLogTag, "<<< Pop scope: {}",
+              (const char*)current_scope_->name.to_string().c_str());
+    scope_stack_.pop();
     if (!scope_stack_.empty()) {
-      current_scope_ = scope_stack_.top();  // Set to the previous scope
+      current_scope_ = scope_stack_.top();
     } else {
       current_scope_ = nullptr;  // No more scopes left
     }
-    BASE_LOGI(kLogTag, "<<< Returning to scope: {}",
-              (const char*)current_scope_->name.to_string().c_str());
   }
 };
 

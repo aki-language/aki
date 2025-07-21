@@ -128,8 +128,6 @@ ParseState ConsumeTrivia(const TokenList& tl, ParseState state) {
 }
 }  // namespace
 
-// Consumes the current token if it matches the expected type.
-// Returns a success result with the new state, or a failure result.
 ParseResult<void> ConsumeToken(const TokenList& tl,
                                ParseState state,
                                TokenType expected_type) {
@@ -169,7 +167,7 @@ ParseResult<ParsedTypeRef> ParseType(const TokenList& tl,
   // For now, all types are just stored by name. A real implementation would check
   // for builtin types, pointers (&), arrays ([]), etc.
   auto type = ast.all_types.Create(ParsedType::Type::Name, type_name);
-  return ParseResult<ParsedTypeRef>::Ok(type.handle, current_state);
+  return ParseResult<ParsedTypeRef>::Ok(type.index, current_state);
 }
 
 ParseResult<ParsedParameterDeclRef> ParseParameterDeclaration(const TokenList& tl,
@@ -191,7 +189,7 @@ ParseResult<ParsedParameterDeclRef> ParseParameterDeclaration(const TokenList& t
                               (ParsedExpressionRef)TranslationUnit::invalid_handle);
 
   auto param = ast.all_parameters.Create(base::move(var_decl), true);
-  return ParseResult<ParsedParameterDeclRef>::Ok(param.handle, current_state);
+  return ParseResult<ParsedParameterDeclRef>::Ok(param.index, current_state);
 }
 
 ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(const TokenList& tl,
@@ -240,7 +238,7 @@ ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(const TokenList& tl,
     current_state.index++;  // Consume ';'
     auto func = ast.all_functions.Create(func_name, params, return_type_handle,
                                          Linkage::External, Visibility::Public);
-    return ParseResult<ParsedFunctionDeclRef>::Ok(func.handle, current_state);
+    return ParseResult<ParsedFunctionDeclRef>::Ok(func.index, current_state);
   }
 
   TRY_VOID(ConsumeToken(tl, current_state, TokenType::LCurly));
@@ -260,7 +258,7 @@ ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(const TokenList& tl,
                                        Linkage::Internal, Visibility::Public);
 
   // 8. Return the handle and the new state
-  return ParseResult<ParsedFunctionDeclRef>::Ok(func.handle, current_state);
+  return ParseResult<ParsedFunctionDeclRef>::Ok(func.index, current_state);
 }
 
 ParseResult<ParsedExpressionRef> ParseExpression(const TokenList& tl,
@@ -278,7 +276,7 @@ ParseResult<ParsedExpressionRef> ParseExpression(const TokenList& tl,
     case TokenType::FloatNumber: {
       auto op = ast.all_ops.Create(ParsedOp::Type::NumericConstant, ParsedOp::Flags::None,
                                    t->value);
-      op_handle = op.handle;
+      op_handle = op.index;
       current_state.index++;
       break;
     }
@@ -294,7 +292,7 @@ ParseResult<ParsedExpressionRef> ParseExpression(const TokenList& tl,
   ops.push_back(op_handle);
 
   auto expr = ast.all_expressions.Create(base::move(ops));
-  return ParseResult<ParsedExpressionRef>::Ok(expr.handle, current_state);
+  return ParseResult<ParsedExpressionRef>::Ok(expr.index, current_state);
 }
 
 
@@ -333,7 +331,7 @@ ParseResult<ParsedVariableDeclRef> ParseVariableDeclaration(const TokenList& tl,
   auto var = ast.all_variables.Create(var_name, is_const, Linkage::Internal,
                                       Visibility::Private, type_handle, expr_handle);
 
-  return ParseResult<ParsedVariableDeclRef>::Ok(var.handle, current_state);
+  return ParseResult<ParsedVariableDeclRef>::Ok(var.index, current_state);
 }
 
 // This is the main dispatcher for any top-level declaration.
@@ -359,32 +357,40 @@ ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
   switch (kwd) {
     case KeywordType::Func: {
       ParsedFunctionDeclRef handle;
+      // The macro updates current_state on success. We then immediately return that
+      // success.
       TRY_INTO_VOID(handle, ParseFunctionDeclaration(tl, ast, current_state));
       cs->functions.emplace_back(handle);
-      break;
+      // BUG FIX: Return immediately on success, propagating the new state.
+      return ParseResult<void>::Ok(current_state);
     }
     case KeywordType::Let: {
       ParsedVariableDeclRef handle;
       TRY_INTO_VOID(handle,
                     ParseVariableDeclaration(tl, ast, current_state, /*is_const=*/true));
       cs->AddObject(TU::ObjectType::Variable, handle);
-      break;
+      // BUG FIX: Return immediately on success, propagating the new state.
+      return ParseResult<void>::Ok(current_state);
     }
     case KeywordType::Var: {
       ParsedVariableDeclRef handle;
       TRY_INTO_VOID(handle,
                     ParseVariableDeclaration(tl, ast, current_state, /*is_const=*/false));
       cs->AddObject(TU::ObjectType::Variable, handle);
-      break;
+      // BUG FIX: Return immediately on success, propagating the new state.
+      return ParseResult<void>::Ok(current_state);
     }
     default:
+      // If no keyword matches, it's an error. The state is not advanced.
       return ParseResult<void>::Err(ParseErrorCode::UnknownTopLevelDeclaration,
                                     current_state);
   }
-
-  // If we get here, one of the cases succeeded and TRY updated our state.
-  // So we return a void success with the new, advanced state.
-  return ParseResult<void>::Ok(current_state);
+  // This line should now be logically unreachable, as all paths inside the switch
+  // either return directly or hit the default case which returns.
+  // We can remove it or leave it as a fallback. For clarity, let's remove it.
+  // return ParseResult<void>::Ok(current_state); // <-- REMOVED
+  BASE_IMPOSSIBLE;
+  return ParseResult<void>::Ok(current_state);  // shut up the compiler
 }
 
 ParseError ParseTranslationUnit(const TokenList& tokens, TranslationUnit& tu) {
@@ -417,7 +423,7 @@ ParseError ParseTranslationUnit(const TokenList& tokens, TranslationUnit& tu) {
     current_state = result.next_state;
   }
 
-  //tu.PopScope();
+  tu.PopScope();
   return ParseError{ParseErrorCode::Success, current_state.index};
 }
 
