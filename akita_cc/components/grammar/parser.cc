@@ -62,6 +62,19 @@ constexpr char kLogTag[] = "langparser";
     current_state = result.next_state;                                           \
   } while (0)
 
+// Use inside a function returning ParseResult<T> (where T is NOT void).
+// Calls an expression that returns ParseResult<void>.
+#define TRY_VOID(expr)                                                             \
+  do {                                                                             \
+    auto result = (expr);                                                          \
+    if (!result.success) {                                                         \
+      /* Returns a failure of the parent function's type, with a default value. */ \
+      return {false, {}, result.error, result.next_state};                         \
+    }                                                                              \
+    current_state = result.next_state;                                             \
+  } while (0)
+
+
 // For use in a function that returns ParseResult<void>.
 #define TRY_INTO_VOID(handle, expr)                              \
   do {                                                           \
@@ -115,26 +128,212 @@ ParseState ConsumeTrivia(const TokenList& tl, ParseState state) {
 }
 }  // namespace
 
+// Consumes the current token if it matches the expected type.
+// Returns a success result with the new state, or a failure result.
+ParseResult<void> ConsumeToken(const TokenList& tl,
+                               ParseState state,
+                               TokenType expected_type) {
+  const Token* t = Peek(tl, state);
+  if (!t) {
+    return ParseResult<void>::Err(ParseErrorCode::UnexpectedEnding, state);
+  }
+  if (t->type != expected_type) {
+    return ParseResult<void>::Err(ParseErrorCode::UnexpectedToken, state);
+  }
+  state.index++;
+  return ParseResult<void>::Ok(state);
+}
+
+// Consumes the current token if it's an identifier.
+// Returns the identifier's string value, or a failure result.
+ParseResult<base::StringRefU8> ParseIdentifier(const TokenList& tl, ParseState state) {
+  const Token* t = Peek(tl, state);
+  if (!t) {
+    return ParseResult<base::StringRefU8>::Err(ParseErrorCode::UnexpectedEnding, state,
+                                               base::StringRefU8::null_ref());
+  }
+  if (t->type != TokenType::Identifier) {
+    return ParseResult<base::StringRefU8>::Err(ParseErrorCode::ExpectedIdentifier, state,
+                                               base::StringRefU8::null_ref());
+  }
+  state.index++;
+  return ParseResult<base::StringRefU8>::Ok(t->value, state);
+}
+
+ParseResult<ParsedTypeRef> ParseType(const TokenList& tl,
+                                     TranslationUnit& ast,
+                                     ParseState current_state) {
+  base::StringRefU8 type_name = base::StringRefU8::null_ref();
+  TRY_WITH_VALUE(type_name, ParseIdentifier(tl, current_state));
+
+  // For now, all types are just stored by name. A real implementation would check
+  // for builtin types, pointers (&), arrays ([]), etc.
+  auto type = ast.all_types.Create(ParsedType::Type::Name, type_name);
+  return ParseResult<ParsedTypeRef>::Ok(type.handle, current_state);
+}
+
+ParseResult<ParsedParameterDeclRef> ParseParameterDeclaration(const TokenList& tl,
+                                                              TranslationUnit& ast,
+                                                              ParseState current_state) {
+  base::StringRefU8 param_name = base::StringRefU8::null_ref();
+  TRY_WITH_VALUE(param_name, ParseIdentifier(tl, current_state));
+
+  TRY_VOID(ConsumeToken(tl, current_state, TokenType::Colon));
+
+  ParsedTypeRef type_handle;
+  TRY_WITH_VALUE(type_handle, ParseType(tl, ast, current_state));
+
+  // In the old code, ParsedVariableDecl was created here. We'll simplify and
+  // assume ParsedParameterDecl can be created directly or via a helper. For
+  // this migration, we'll create the underlying variable decl first.
+  ParsedVariableDecl var_decl(param_name, false, /* is_const */
+                              Linkage::Internal, Visibility::Private, type_handle,
+                              (ParsedExpressionRef)TranslationUnit::invalid_handle);
+
+  auto param = ast.all_parameters.Create(base::move(var_decl), true);
+  return ParseResult<ParsedParameterDeclRef>::Ok(param.handle, current_state);
+}
+
 ParseResult<ParsedFunctionDeclRef> ParseFunctionDeclaration(const TokenList& tl,
                                                             TranslationUnit& ast,
                                                             ParseState current_state) {
-  const Token* t = Peek(tl, current_state);
-  if (!t || t->type != TokenType::Identifier ||
-      MatchKeyword(t->value) != KeywordType::Func) {
-    return ParseResult<ParsedFunctionDeclRef>::Err(ParseErrorCode::ExpectedKeywordFunc,
-                                                   current_state);
-  }
-  // Advance state for the keyword
+  // 1. Consume "func" keyword - This is already done by the dispatcher.
+  // The state we receive is *after* the "func" keyword.
   current_state.index++;
 
-  t = Peek(tl, current_state);
-  if (!t || t->type != TokenType::Identifier) {
+  // 2. Parse function name
+  base::StringRefU8 func_name = base::StringRefU8::null_ref();
+  TRY_WITH_VALUE(func_name, ParseIdentifier(tl, current_state));
 
+  // 3. Parse parameters
+  TRY_VOID(ConsumeToken(tl, current_state, TokenType::LParen));
+
+  base::Vector<ParsedParameterDeclRef> params;
+  // Check if there are any parameters before entering the loop
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type != TokenType::RParen) {
+    while (true) {
+      ParsedParameterDeclRef param_handle;
+      TRY_WITH_VALUE(param_handle, ParseParameterDeclaration(tl, ast, current_state));
+      params.push_back(param_handle);
+
+      // After a parameter, we expect a comma or a closing parenthesis
+      const Token* next_token = Peek(tl, current_state);
+      if (next_token && next_token->type == TokenType::RParen) {
+        break;  // End of parameter list
+      }
+      TRY_VOID(ConsumeToken(tl, current_state, TokenType::Comma));
+    }
   }
 
+  TRY_VOID(ConsumeToken(tl, current_state, TokenType::RParen));
 
-  return ParseResult<ParsedFunctionDeclRef>::Err(ParseErrorCode::ExpectedKeywordFunc,
+  // 4. Parse optional return type
+  ParsedTypeRef return_type_handle = (ParsedTypeRef)TranslationUnit::invalid_handle;
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type == TokenType::Colon) {
+    current_state.index++;  // Consume ':'
+    TRY_WITH_VALUE(return_type_handle, ParseType(tl, ast, current_state));
+  }
+
+  // 5. Check for function body or forward declaration
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type == TokenType::Semicolon) {
+    // Forward declaration
+    current_state.index++;  // Consume ';'
+    auto func = ast.all_functions.Create(func_name, params, return_type_handle,
+                                         Linkage::External, Visibility::Public);
+    return ParseResult<ParsedFunctionDeclRef>::Ok(func.handle, current_state);
+  }
+
+  TRY_VOID(ConsumeToken(tl, current_state, TokenType::LCurly));
+
+  // 6. Parse function body (omitted for brevity, but would involve parsing statements)
+  // For now, we'll just skip to the closing brace.
+  // A real implementation would loop, calling ParseStatement() until '}'.
+  while (Peek(tl, current_state) && Peek(tl, current_state)->type != TokenType::RCurly) {
+    // TODO: Implement ParseStatement and call it here.
+    current_state.index++;
+  }
+
+  TRY_VOID(ConsumeToken(tl, current_state, TokenType::RCurly));
+
+  // 7. Create the function declaration in the AST
+  auto func = ast.all_functions.Create(func_name, params, return_type_handle,
+                                       Linkage::Internal, Visibility::Public);
+
+  // 8. Return the handle and the new state
+  return ParseResult<ParsedFunctionDeclRef>::Ok(func.handle, current_state);
+}
+
+ParseResult<ParsedExpressionRef> ParseExpression(const TokenList& tl,
+                                                 TranslationUnit& ast,
+                                                 ParseState current_state) {
+  const Token* t = Peek(tl, current_state);
+  if (!t) {
+    return ParseResult<ParsedExpressionRef>::Err(ParseErrorCode::UnexpectedEnding,
                                                  current_state);
+  }
+
+  ParsedOpRef op_handle;
+  switch (t->type) {
+    case TokenType::IntegerNumber:
+    case TokenType::FloatNumber: {
+      auto op = ast.all_ops.Create(ParsedOp::Type::NumericConstant, ParsedOp::Flags::None,
+                                   t->value);
+      op_handle = op.handle;
+      current_state.index++;
+      break;
+    }
+    // TODO: Handle other operand types like identifiers, function calls, strings, etc.
+    default:
+      return ParseResult<ParsedExpressionRef>::Err(ParseErrorCode::InvalidExpression,
+                                                   current_state);
+  }
+
+  // An expression is a list of operands/operators. For this simple case,
+  // it's just one operand.
+  base::Vector<ParsedOpRef> ops;
+  ops.push_back(op_handle);
+
+  auto expr = ast.all_expressions.Create(base::move(ops));
+  return ParseResult<ParsedExpressionRef>::Ok(expr.handle, current_state);
+}
+
+
+ParseResult<ParsedVariableDeclRef> ParseVariableDeclaration(const TokenList& tl,
+                                                            TranslationUnit& ast,
+                                                            ParseState current_state,
+                                                            bool is_const) {
+  // let/var keyword is already consumed.
+  current_state.index++;
+
+  base::StringRefU8 var_name = base::StringRefU8::null_ref();
+  TRY_WITH_VALUE(var_name, ParseIdentifier(tl, current_state));
+
+  ParsedTypeRef type_handle = (ParsedTypeRef)TranslationUnit::invalid_handle;
+  ParsedExpressionRef expr_handle = (ParsedExpressionRef)TranslationUnit::invalid_handle;
+
+  // Check for explicit type annotation (e.g., `: i32`)
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type == TokenType::Colon) {
+    current_state.index++;  // Consume ':'
+    TRY_WITH_VALUE(type_handle, ParseType(tl, ast, current_state));
+  }
+
+  // Check for assignment (e.g., `= 42`)
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type == TokenType::Equal) {
+    current_state.index++;  // Consume '='
+    TRY_WITH_VALUE(expr_handle, ParseExpression(tl, ast, current_state));
+  }
+
+  if (type_handle == TranslationUnit::invalid_handle &&
+      expr_handle == TranslationUnit::invalid_handle) {
+    // Neither a type nor an initializer was provided.
+    return ParseResult<ParsedVariableDeclRef>::Err(ParseErrorCode::InvalidTypeDecleration,
+                                                   current_state);
+  }
+
+  auto var = ast.all_variables.Create(var_name, is_const, Linkage::Internal,
+                                      Visibility::Private, type_handle, expr_handle);
+
+  return ParseResult<ParsedVariableDeclRef>::Ok(var.handle, current_state);
 }
 
 // This is the main dispatcher for any top-level declaration.
@@ -160,14 +359,24 @@ ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
   switch (kwd) {
     case KeywordType::Func: {
       ParsedFunctionDeclRef handle;
-      // The TRY macro will handle state propagation.
-      // It calls the function with the *current* state. On success,
-      // it updates our local `current_state` and `handle`. On failure, it returns.
       TRY_INTO_VOID(handle, ParseFunctionDeclaration(tl, ast, current_state));
       cs->functions.emplace_back(handle);
       break;
     }
-    // ... other cases
+    case KeywordType::Let: {
+      ParsedVariableDeclRef handle;
+      TRY_INTO_VOID(handle,
+                    ParseVariableDeclaration(tl, ast, current_state, /*is_const=*/true));
+      cs->AddObject(TU::ObjectType::Variable, handle);
+      break;
+    }
+    case KeywordType::Var: {
+      ParsedVariableDeclRef handle;
+      TRY_INTO_VOID(handle,
+                    ParseVariableDeclaration(tl, ast, current_state, /*is_const=*/false));
+      cs->AddObject(TU::ObjectType::Variable, handle);
+      break;
+    }
     default:
       return ParseResult<void>::Err(ParseErrorCode::UnknownTopLevelDeclaration,
                                     current_state);
@@ -183,7 +392,7 @@ ParseError ParseTranslationUnit(const TokenList& tokens, TranslationUnit& tu) {
   tu.PushScope(u8"global", TU::Scope::Type::Namespace);
 
   while (current_state.index < tokens.size()) {
-    ParseState state_before_trivia = current_state;
+    ParseState state_before_decl = current_state;
     current_state = ConsumeTrivia(tokens, current_state);
 
     if (current_state.index >= tokens.size()) {
@@ -196,7 +405,19 @@ ParseError ParseTranslationUnit(const TokenList& tokens, TranslationUnit& tu) {
       // TBD: ... logging ...
       return result.error;
     }
+
+    // If parsing succeeded but no tokens were consumed, it means we have an
+    // unhandled token that isn't a top-level declaration.
+    if (result.next_state.index == state_before_decl.index) {
+      // This prevents infinite loops on unknown tokens.
+      return {ParseErrorCode::UnexpectedToken, state_before_decl.index};
+    }
+
+    // Commit the new state
+    current_state = result.next_state;
   }
+
+  //tu.PopScope();
   return ParseError{ParseErrorCode::Success, current_state.index};
 }
 

@@ -20,6 +20,7 @@ enum class ParseErrorCode {
   UnexpectedToken,
   UnexpectedEnding,
   ExpectedKeywordFunc,
+  ExpectedIdentifier,
   UnknownKeyword,
   MissingBrace,
   MissingSemicolon,
@@ -72,8 +73,10 @@ struct ParseResult {
   static ParseResult<T> Ok(T val, ParseState state) {
     return {true, std::move(val), {ParseErrorCode::Success, state.index}, state};
   }
-  static ParseResult<T> Err(ParseErrorCode code, ParseState original_state) {
-    return {false, {}, {code, original_state.index}, original_state};
+  static ParseResult<T> Err(ParseErrorCode code,
+                            ParseState original_state,
+                            T val_construc = {}) {
+    return {false, std::move(val_construc), {code, original_state.index}, original_state};
   }
 
   // Allow checking in an if-statement
@@ -109,4 +112,8 @@ struct StateResult {
 // Takes a TokenList produced by the lexer and builds our custom AST representation 
 AKI_GRAMMAR_API ParseError ParseTranslationUnit(const aki::TokenList& tokens,
                                                 TranslationUnit& tu);
+
+AKI_GRAMMAR_API ParseResult<void> ParseTopLevelDeclaration(const TokenList& tl,
+                                           TranslationUnit& ast,
+                                           ParseState current_state);
 }  // namespace aki
