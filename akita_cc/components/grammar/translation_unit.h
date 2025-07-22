@@ -40,7 +40,18 @@ struct TranslationUnit {
   AST_POOL(ParsedComplexDecl, complexes);
   AST_POOL(ParsedExpression, expressions);
   AST_POOL(ParsedStatement, statements);
+
+  // types
   AST_POOL(ParsedType, types);
+  AST_POOL(ParsedType::NamespacedName, namespaced_types);
+  AST_POOL(ParsedType::GenericType, generic_types);
+  AST_POOL(ParsedType::Tuple, tuple_types);
+  AST_POOL(ParsedType::Array, array_types);
+  AST_POOL(ParsedType::Dictionary, dictionary_types);
+  AST_POOL(ParsedType::Set, set_types);
+  AST_POOL(ParsedType::Optional, optional_types);
+  AST_POOL(ParsedType::Pointer, pointer_types);
+
   AST_POOL(ParsedOp, ops);
 
   // scopes can own a set of objects, these can be either: namespaces,
@@ -61,6 +72,17 @@ struct TranslationUnit {
     base::Vector<ParsedEnumDeclRef> enums;
     base::Vector<ParsedComplexDeclRef> complexes;
     base::Vector<ParsedStatementRef> statements;
+
+    // types:
+    base::Vector<ParsedTypeRef> all_types;
+    base::Vector<ParsedType::NamespacedNameRef> all_namespaced_types;
+    base::Vector<ParsedType::GenericTypeRef> all_generic_types;
+    base::Vector<ParsedType::TupleRef> all_tuple_types;
+    base::Vector<ParsedType::ArrayRef> all_array_types;
+    base::Vector<ParsedType::DictionaryRef> all_dictionary_types;
+    base::Vector<ParsedType::SetRef> all_set_types;
+    base::Vector<ParsedType::OptionalRef> all_optional_types;
+    base::Vector<ParsedType::PointerRef> all_pointer_types;
 
     bool all_empty() const {
       return namespaces.empty() && functions.empty() && complexes.empty() &&

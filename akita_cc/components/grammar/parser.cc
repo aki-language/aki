@@ -161,13 +161,76 @@ ParseResult<base::StringRefU8> ParseIdentifier(const TokenList& tl, ParseState s
 ParseResult<ParsedTypeRef> ParseType(const TokenList& tl,
                                      TranslationUnit& ast,
                                      ParseState current_state) {
-  base::StringRefU8 type_name = base::StringRefU8::null_ref();
-  TRY_WITH_VALUE(type_name, ParseIdentifier(tl, current_state));
+  // First, check for a pointer prefix. We'll apply this at the end.
+  bool is_pointer = false;
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type == TokenType::Ampersand) {
+    is_pointer = true;
+    current_state.index++;
+  }
 
-  // For now, all types are just stored by name. A real implementation would check
-  // for builtin types, pointers (&), arrays ([]), etc.
-  auto type = ast.all_types.Create(ParsedType::Type::Name, type_name);
-  return ParseResult<ParsedTypeRef>::Ok(type.index, current_state);
+  ParsedTypeRef base_type_handle;
+  #if 0
+  // Next, check if it's an array type `[...]` or a simple name.
+  if (Peek(tl, current_state) && Peek(tl, current_state)->type == TokenType::LSquare) {
+    // Array type parsing: [base_type; size] or [base_type, ...] or [base_type]
+    current_state.index++;  // Consume '['
+
+    // The element type can itself be a complex type.
+    ParsedTypeRef element_type_handle;
+    TRY_WITH_VALUE(element_type_handle, ParseType(tl, ast, current_state));
+
+    ParsedExpressionRef size_expr_handle =
+        (ParsedExpressionRef)TranslationUnit::invalid_handle;
+    bool is_unbounded = false;
+
+    const Token* t = Peek(tl, current_state);
+    if (!t) {
+      return ParseResult<ParsedTypeRef>::Err(ParseErrorCode::UnexpectedEnding,
+                                             current_state);
+    }
+
+    if (t->type == TokenType::Semicolon) {
+      // Bounded array: [type; size_expr]
+      current_state.index++;  // Consume ';'
+      TRY_WITH_VALUE(size_expr_handle, ParseExpression(tl, ast, current_state));
+    } else if (t->type == TokenType::Comma) {
+      // Unbounded array: [type, ...]
+      current_state.index++;  // Consume ','
+      TRY_VOID(ConsumeToken(tl, current_state, TokenType::Ellipsis));
+      is_unbounded = true;
+    } else if (t->type == TokenType::RSquare) {
+      // Unbounded array shorthand: [type]
+      is_unbounded = true;
+    } else {
+      return ParseResult<ParsedTypeRef>::Err(ParseErrorCode::UnexpectedToken,
+                                             current_state);
+    }
+
+    TRY_VOID(ConsumeToken(tl, current_state, TokenType::RSquare));
+
+    // Assuming a method to create array types.
+    auto array_type = ast.all_types.CreateArrayType(element_type_handle, size_expr_handle,
+                                                    is_unbounded);
+    base_type_handle = array_type.index;
+  } else {
+    // A simple named type (e.g., `i32`, `MyStruct`)
+    base::StringRefU8 type_name = base::StringRefU8::null_ref();
+    TRY_WITH_VALUE(type_name, ParseIdentifier(tl, current_state));
+    auto type = ast.all_types.CreateNameType(type_name);
+    base_type_handle = type.index;
+  }
+  #endif
+
+  #if 0
+  // If we saw a '&' at the beginning, wrap the parsed type in a pointer type.
+  if (is_pointer) {
+    // Assuming a method to create pointer types.
+    auto ptr_type = ast.all_types.CreatePointerType(base_type_handle);
+    return ParseResult<ParsedTypeRef>::Ok(ptr_type.index, current_state);
+  }
+  #endif
+
+  return ParseResult<ParsedTypeRef>::Ok(base_type_handle, current_state);
 }
 
 ParseResult<ParsedParameterDeclRef> ParseParameterDeclaration(const TokenList& tl,
@@ -296,6 +359,16 @@ ParseResult<ParsedExpressionRef> ParseExpression(const TokenList& tl,
 }
 
 
+// Variable syntax in this language is similar to Rust or TypeScript.
+// Variables can be declared with `let` (immutable) or `var` (mutable).
+// The syntax is as follows:
+// Example:
+// Parse a varible: let x: i32 = 42;
+// An array:        let arr: [i32; 10] = [1, 2, 3, 4, 5];
+//      unbounded:  let arr: [i32, ...] = [1, 2, 3, 4, 5];
+//          or:     let arr: [i32] = [1, 2, 3, 4, 5];
+//      with chars: let chars: [c8; 5] = ['a', 'b', 'c', 'd', 'e'];
+// Referencing a string literal: let str: &u8 = "hello world"; (this works since the strings live in rdata)
 ParseResult<ParsedVariableDeclRef> ParseVariableDeclaration(const TokenList& tl,
                                                             TranslationUnit& ast,
                                                             ParseState current_state,
