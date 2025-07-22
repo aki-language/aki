@@ -1,8 +1,8 @@
 component2("aki_grammar")
   kind("SharedLib")
   files({
-    "*.cc",
-    "*.h",
+    "**.cc",
+    "**.h",
     "premake5.lua",
   })
   includedirs({
@@ -15,8 +15,8 @@ component2("aki_grammar")
 
 unittest2("aki_grammar:grammar_tests")
   files({
-    "*.cc",
-    "*.h",
+    "**.cc",
+    "**.h",
   })
   includedirs({
     "../utils",

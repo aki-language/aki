@@ -43,6 +43,7 @@
 // In regards to this parsing setup, we use mostly a functional approach. If the function
 // parsing succeeds, we "commit" a new state index pointer, if not we "revert"
 
+
 namespace aki {
 namespace {
 constexpr char kLogTag[] = "langparser";

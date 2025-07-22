@@ -5,7 +5,6 @@
 #include <base/optional.h>
 
 #include "keyword.h"
-#include "syntax.h"
 #include "token.h"
 #include "translation_unit.h"
 #include "lexer.h"

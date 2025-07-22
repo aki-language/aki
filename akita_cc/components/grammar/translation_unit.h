@@ -1,6 +1,7 @@
 // Copyright (C) The (still) SANE Authors/Vincent Hengel 2023
 #pragma once
 
+#include <base/logging.h>
 #include <base/containers/vector.h>
 #include <base/memory/unique_pointer.h>
 
@@ -8,7 +9,10 @@
 #include "base/compiler.h"
 
 #include <utils/object_pool.h>
-#include <grammar/syntax.h>
+#include <grammar/ast/variable.h>
+#include <grammar/ast/function.h>
+#include <grammar/ast/enum.h>
+#include <grammar/ast/complex.h>
 
 namespace aki {
 #define AST_POOL(class_name, name) \

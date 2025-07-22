@@ -83,7 +83,7 @@ struct ObjectPool final {
     return &(*slots_[handle.index.value].object);
   }
 
-  [[nodiscard]] const T* GetByArrayIndex(mem_size idx) const {
+  [[nodiscard]] const T* GetByArrayIndex(mem_size idx) {
     if (idx >= slots_.size()) {
       return nullptr;
     }
@@ -95,7 +95,7 @@ struct ObjectPool final {
   }
 
   // Checks if a handle currently points to a live object.
-  [[nodiscard]] bool IsValid(Handle handle) const {
+  [[nodiscard]] bool IsValid(Handle handle) {
     return handle.IsValid() && handle.index < slots_.size() &&
            slots_[handle.index].generation == handle.generation &&
            slots_[handle.index].object.has_value();
@@ -109,7 +109,7 @@ struct ObjectPool final {
  private:
   // Each slot contains the object (optional) and its generation.
   struct Slot {
-    std::optional<T> object; // TBD: base
+    base::Optional<T> object; // TBD: base
     GenerationType generation = 0;
   };
 
